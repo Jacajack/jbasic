@@ -1,3 +1,10 @@
+#ifndef JBASIC_H
+#define JBASIC_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <inttypes.h>
 #include <ctype.h>
@@ -17,7 +24,7 @@
 		- PRINT
 */
 
-#define JBAS_DEBUG
+
 
 typedef enum
 {
@@ -154,6 +161,10 @@ typedef struct
 	int token_stack_size;
 	jbas_token_list_node_pool token_pool;
 } jbas_env;
+
+
+
+#ifdef JBASIC_IMPLEMENTATION
 
 /**
 	Returns true or false depending on whether the character
@@ -560,19 +571,10 @@ jbas_error jbas_run_lines(jbas_env *env, const char *const str)
 	return JBAS_OK;	
 }
 
-int main(void)
-{
-	jbas_env jb =
-	{
-		.token_stack_size = 12
-	};
+#endif
 
-	const char *lines = 
-	"ASS_STR = 'dupa'\n"
-	"PRINT 'heheszky'\n"
-	"PRINT `This is nice!`\n";
-
-	jbas_run_lines(&jb, lines);
-
-	//jbas_run_line(&jb, "PRINT 'Hello \"Wo\"rld!' 12 4.4e-4 FARFUGOL 3E+12 \"I'm listening to The Cure\" ");
+#ifdef __cplusplus
 }
+#endif
+
+#endif
