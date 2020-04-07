@@ -4,15 +4,20 @@
 
 int main(void)
 {
-	jbas_env jb =
-	{
-		.token_stack_size = 12
-	};
+	jbas_env env;
+	jbas_env_init(&env, 10000);
 
 	const char *lines = 
-	"TEST_STR = 'this is a test string'\n"
+	"'aa' TEST_STR = 'this is a test string'\n"
 	"PRINT 'hehe'\n"
 	"PRINT `This is nice!`\n";
 
-	jbas_run_lines(&jb, lines);
+	jbas_tokenize_string(&env, lines);
+
+	printf("---------\n");
+
+	for (jbas_token *t = jbas_token_list_begin(env.tokens); t; t = t->r)
+		jbas_debug_dump_token(t);
+
+	jbas_env_destroy(&env);
 }

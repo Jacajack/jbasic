@@ -1,2 +1,2 @@
 all:
-	clang -o test test.c -Wall -fsanitize=address
+	clang -o test test.c -Wall -O0 -fsanitize=address -g

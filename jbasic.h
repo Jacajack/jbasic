@@ -32,6 +32,9 @@ typedef enum
 	JBAS_SYNTAX_UNMATCHED_QUOTE,
 	JBAS_PRINT_BAD_ARGUMENT,
 	JBAS_EMPTY_TOKEN,
+	JBAS_TOKEN_POOL_EMPTY,
+	JBAS_TOKEN_POOL_OVERFLOW,
+	JBAS_ALLOC
 } jbas_error;
 
 typedef enum
@@ -117,7 +120,7 @@ typedef struct
 /**
 	Polymorphic token
 */
-typedef struct
+typedef struct jbas_token_s
 {
 	jbas_token_type type;
 	const char *begin, *end;
@@ -131,36 +134,41 @@ typedef struct
 		jbas_name_token name_token;
 	} u;
 
+	// For bidirectional linking
+	struct jbas_token_s *l, *r;
+
 } jbas_token;
 
-/**
-	Element of a bidirectional token list
-*/
-typedef struct jbas_token_list_node_struct
-{
-	struct jbas_token_list_node_struct *l, *r;
-	jbas_token t;
-} jbas_token_list_node;
 
 /**
 	Pool with unused list nodes
 */
 typedef struct 
 {
-	jbas_token_list_node *nodes;
-	jbas_token_list_node **unused_stack;
+	jbas_token *tokens;
+	jbas_token **unused_stack;
 	int pool_size;
 	int unused_count;
-} jbas_token_list_node_pool;
+} jbas_token_pool;
 
 /**
 	Environment for BASIC program execution
 */
 typedef struct
 {
-	int token_stack_size;
-	jbas_token_list_node_pool token_pool;
+	jbas_token_pool token_pool; //!< Common token pool
+	jbas_token *tokens; //!< Tokenized program
 } jbas_env;
+
+
+
+typedef struct
+{
+	int length;
+	const char *str;
+} jbas_text;
+
+
 
 
 
@@ -244,7 +252,7 @@ jbas_error jbas_get_token(const char *const str, const char **next, jbas_token *
 	const char *s = str;
 
 	// Skip preceding whitespace
-	while (*s && isspace(*s)) s++;
+	while (*s && isspace(*s) && *s != '\n') s++;
 	if (!*s)
 	{
 		*next = NULL;
@@ -254,7 +262,7 @@ jbas_error jbas_get_token(const char *const str, const char **next, jbas_token *
 	token->begin = s;
 
 	// If it's ';', it's a delimiter
-	if (*s == ';')
+	if (*s == ';' || *s == '\n')
 	{
 		*next = s + 1;
 		token->type = JBAS_TOKEN_DELIMITER;
@@ -408,97 +416,211 @@ jbas_error jbas_get_token(const char *const str, const char **next, jbas_token *
 	return JBAS_OK;
 }
 
-/**
-	Insert an element into the bidirectional token list.
-	Returns a pointer to the newly inserted list node
-*/
-jbas_token_list_node *jbas_token_list_insert(jbas_token_list_node *after, jbas_token_list_node *node)
+
+
+// -------------------------------------- TOKEN POOL
+
+jbas_error jbas_token_pool_get(
+	jbas_token_pool *pool,
+	jbas_token **t)
 {
-	if (after == NULL)
+	if (!pool->unused_count) return JBAS_TOKEN_POOL_EMPTY;
+	*t = pool->unused_stack[--pool->unused_count];
+	return JBAS_OK;
+}
+
+jbas_error jbas_token_pool_return(
+	jbas_token_pool *pool,
+	jbas_token *t)
+{
+	if (pool->unused_count >= pool->pool_size) return JBAS_TOKEN_POOL_OVERFLOW;
+	pool->unused_stack[pool->unused_count++] = t;
+	return JBAS_OK;
+}
+
+
+jbas_error jbas_token_pool_init(jbas_token_pool *pool, int size)
+{
+	pool->pool_size = pool->unused_count = size;
+	pool->tokens = calloc(size, sizeof(jbas_token));
+	pool->unused_stack = calloc(size, sizeof(jbas_token*));
+	
+	if (!pool->tokens || !pool->unused_stack)
 	{
-		node->l = NULL;
-		node->r = NULL;
-	}
-	else
-	{
-		node->r = after->r;
-		node->l = after;
-		if (node->l) node->l->r = node;
-		if (node->r) node->r->l = node;
+		free(pool->tokens);
+		free(pool->unused_stack);
+		return JBAS_ALLOC;
 	}
 
-	return node;
+	for (int i = 0; i < size; i++)
+	{
+		pool->unused_stack[i] = &pool->tokens[i];
+		pool->tokens[i].l = pool->tokens[i].r = NULL;
+	}
+
+	return JBAS_OK;
 }
+
+jbas_error jbas_token_pool_destroy(jbas_token_pool *pool)
+{
+	free(pool->tokens);
+	free(pool->unused_stack);
+	return JBAS_ALLOC;
+}
+
+// --------------------------------------
+
 
 /**
 	Returns a pointer to the first element of the list
 */
-jbas_token_list_node *jbas_token_list_find_beginning(jbas_token_list_node *n)
+jbas_token *jbas_token_list_begin(jbas_token *t)
 {
-	while (n->l)
-		n = n->l;
-	return n;
+	while (t && t->l)
+		t = t->l;
+	return t;
 }
 
 /**
-	Removes a node from a token list
+	Returns a pointer to the last element of the list
 */
-jbas_token_list_node *jbas_token_list_remove(jbas_token_list_node *n)
+jbas_token *jbas_token_list_end(jbas_token *t)
 {
-	if (n->l) n->l->r = n->r;
-	if (n->r) n->r->l = n->l;
-	return n;
+	while (t && t->r)
+		t = t->r;
+	return t;
 }
 
+/**
+	Insert a new element into a token list. The new token is inserted after
+	the element pointed by `after` pointer.
+
+	Pointer to the newly inserted element is optionally returned through the `inserted` pointer.
+*/
 jbas_error jbas_token_list_insert_from_pool(
-	jbas_token_list_node **list_handle,
-	jbas_token_list_node_pool *pool,
-	jbas_token *t)
+	jbas_token *after,
+	jbas_token_pool *pool,
+	jbas_token *token,
+	jbas_token **inserted)
 {
-	if (!pool->count) return JBAS_NODE_POOL_EMPTY;
-	jbas_token_list_node *
+	jbas_token *t;
+	jbas_error err = jbas_token_pool_get(pool, &t);
+	if (err) return err;
+	
+	*t = *token;
+
+	// Insert into empty list?
+	if (after == NULL)
+	{
+		t->l = NULL;
+		t->r = NULL;
+		if(inserted) *inserted = t;
+		return JBAS_OK;
+	}
+	else
+	{
+		t->l = after;
+		t->r = after->r;
+		if (after->r) after->r->l = t;
+		after->r = t;
+
+		if (inserted) *inserted = t;
+		return JBAS_OK;
+	}
 }
 
-jbas_error jbas_token_list_move_to_pool(
-	jbas_token_list_node **list_handle,
-	jbas_token_list_node_pool *pool)
+jbas_error jbas_token_list_insert_before_from_pool(
+		jbas_token *before,
+		jbas_token_pool *pool,
+		jbas_token *token,
+		jbas_token **inserted)
 {
+	// Insert at the beginning?
+	if (!before->l)
+	{
+		jbas_token *t;
+		jbas_error err = jbas_token_pool_get(pool, &t);
+		if (err) return err;
+		
+		*t = *token;
 
+		t->l = NULL;
+		t->r = before;
+		before->l = t;
+
+		*inserted = t;
+		return JBAS_OK;
+	}
+	else
+	{
+		return jbas_token_list_insert_from_pool(before->l, pool, token, inserted);
+	}
 }
 
+
+jbas_error jbas_token_list_push_front_from_pool(
+	jbas_token *list,
+	jbas_token_pool *pool,
+	jbas_token *token,
+	jbas_token **inserted)
+{
+	return jbas_token_list_insert_before_from_pool(jbas_token_list_begin(list), pool, token, inserted);
+}
+
+jbas_error jbas_token_list_push_back_from_pool(
+	jbas_token *list,
+	jbas_token_pool *pool,
+	jbas_token *token,
+	jbas_token **inserted)
+{
+	return jbas_token_list_insert_from_pool(jbas_token_list_end(list), pool, token, inserted);
+}
 
 /**
-	Evaluates token list
-*/
-jbas_error jbas_eval_token_list(jbas_token_list_node *list)
-{
-	// Run recursively for parentheses
+	Removes a node from the linked list and moves it to the pool
 
+	The handle is moved either to the left or to the right.
+	If removed element is the last one in the list, the handle is set to NULL.
+*/
+jbas_error jbas_token_list_return_to_pool(
+	jbas_token **list_handle,
+	jbas_token_pool *pool)
+{
+	jbas_token *t = *list_handle;
+	if (t->l) t->l->r = t->r;
+	if (t->r) t->r->l = t->l;
+
+	// Move the handle to a valid element
+	if (t->l) *list_handle = t->l;
+	else if (t->r) *list_handle = t->r;
+	else *list_handle = NULL;
+
+	return jbas_token_pool_return(pool, t);
 }
+
+
 
 /**
 	Performs line tokenization, parsing and executes it in the provided environment
 */
-jbas_error jbas_run_line(jbas_env *env, const char *line)
+jbas_error jbas_tokenize_string(jbas_env *env, const char *str)
 {
-	jbas_token_list_node node_pool[env->token_stack_size];
-	int free_node_count = env->token_stack_size;
-
-	jbas_token_list_node *token_list = NULL;
-	
-	// Collect all tokens on the stack
-	while (free_node_count)
+	while (1)
 	{
-		// Take pointer to a node from the pool
-		jbas_token_list_node *new_node = &node_pool[free_node_count - 1];
-		
 		// Get a token from the line
-		jbas_error err = jbas_get_token(line, &line, &new_node->t);
+		jbas_token t;
+		jbas_error err = jbas_get_token(str, &str, &t);
 
 		if (!err) // Insert a valid token into the list
 		{
-			free_node_count--;
-			token_list = jbas_token_list_insert(token_list, new_node);
+			jbas_token *new_token;
+			jbas_error err = jbas_token_list_push_back_from_pool(env->tokens, &env->token_pool, &t, &new_token);
+			env->tokens = new_token;
+			if (err) return err;
+
+			#ifdef JBASIC_DEBUG
+				jbas_debug_dump_token(&t);
+			#endif
 		}
 		else if (err == JBAS_EMPTY_TOKEN)
 			break;
@@ -506,69 +628,18 @@ jbas_error jbas_run_line(jbas_env *env, const char *line)
 			return err;
 	}
 
-	// "Rewind" the list
-	token_list = jbas_token_list_find_beginning(token_list);
-
-	// Dump all tokens for debug purposes
-	#ifdef JBAS_DEBUG
-	// for ( int i = 0; i < token_count; i++ )
-	for (jbas_token_list_node *n = token_list; n; n = n->r)
-		jbas_debug_dump_token(&n->t);
-	#endif
-
-	/*
-
-	if (!token_count) return JBAS_OK;
-
-	// If the first token is a keyword
-	if (tokens[0].type == JBAS_TOKEN_KEYWORD)
-	{
-		jbas_error err = JBAS_OK;
-
-		switch (tokens[0].u.keyword_token.id)
-		{
-			case JBAS_KW_PRINT:
-				err = jbas_print(tokens + 1, token_count - 1);
-				break;
-		}
-	}
-	
-	// ASSIGNMENT
-	if (tokens[0].type == JBAS_TOKEN_NAME
-		&& tokens[1].type == JBAS_TOKEN_OPERATOR
-		&& tokens[1].u.operator_token.id == JBAS_OP_EQ)
-	{
-		// TODO
-		printf("Assigned to %.*s\n", (int)(tokens[0].u.name_token.end - tokens[0].u.name_token.begin), tokens[0].u.name_token.begin);
-	}
-
-	*/
-
 	return JBAS_OK;
 }
 
-/**
-	Runs entire program
-*/
-jbas_error jbas_run_lines(jbas_env *env, const char *const str)
+jbas_error jbas_env_init(jbas_env *env, int token_count)
 {
-	char *lines = strdup(str);
-	char *strtok_buf;
+	env->tokens = NULL;
+	return jbas_token_pool_init(&env->token_pool, token_count);
+}
 
-	for (char *line = strtok_r(lines, "\n", &strtok_buf);
-		line;
-		line = strtok_r(NULL, "\n", &strtok_buf))
-	{
-		jbas_error err = jbas_run_line(env, line);
-		if (err)
-		{
-			free(lines);
-			return err;
-		}
-	}
-
-	free(lines);
-	return JBAS_OK;	
+jbas_error jbas_env_destroy(jbas_env *env)
+{
+	return jbas_token_pool_destroy(&env->token_pool);
 }
 
 #endif
