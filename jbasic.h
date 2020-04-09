@@ -25,7 +25,12 @@ extern "C" {
 		- PRINT
 */
 
-
+#define JBAS_COLOR_RED "\x1b[31m"
+#define JBAS_COLOR_GREEN "\x1b[32m"
+#define JBAS_COLOR_YELLOW "\x1b[33m"
+#define JBAS_COLOR_BLUE "\x1b[34m"
+#define JBAS_COLOR_MAGENTA "\x1b[35m"
+#define JBAS_COLOR_RESET "\x1b[0m"
 
 typedef enum
 {
@@ -39,12 +44,14 @@ typedef enum
 	JBAS_TEXT_MANAGER_OVERFLOW,
 	JBAS_TEXT_MANAGER_MISMATCH,
 	JBAS_RESOURCE_MANAGER_NOT_EMPTY,
+	JBAS_SYMBOL_MANAGER_OVERFLOW,
+	JBAS_SYMBOL_COLLISION,
 	JBAS_TYPE_MISMATCH,
 } jbas_error;
 
 typedef enum
 {
- 	JBAS_TOKEN_NAME,
+ 	JBAS_TOKEN_SYMBOL,
  	JBAS_TOKEN_KEYWORD,
  	JBAS_TOKEN_OPERATOR,
  	JBAS_TOKEN_LPAREN,
@@ -56,7 +63,10 @@ typedef enum
 
 typedef enum
 {
-	JBAS_KW_PRINT
+	JBAS_KW_PRINT,
+	JBAS_KW_IF,
+	JBAS_KW_THEN,
+	JBAS_KW_ENDIF
 } jbas_keyword;
 
 typedef enum
@@ -79,7 +89,10 @@ typedef enum
 
 static const struct {const char *name; jbas_keyword id;} jbas_keywords[] = 
 {
-	{"PRINT", JBAS_KW_PRINT}
+	{"PRINT", JBAS_KW_PRINT},
+	{"IF", JBAS_KW_IF},
+	{"ENDIF", JBAS_KW_ENDIF},
+	{"THEN", JBAS_KW_THEN},
 };
 #define JBAS_KEYWORD_COUNT ((sizeof jbas_keywords) / (sizeof jbas_keywords[0]))
 
@@ -104,6 +117,69 @@ typedef struct
 	int free_slot_count;
 	int max_count;
 } jbas_text_manager;
+
+
+
+typedef enum
+{
+	JBAS_RESOURCE_INT,
+	JBAS_RESOURCE_FLOAT,
+	JBAS_RESOURCE_INT_ARRAY,
+	JBAS_RESOURCE_FLOAT_ARRAY,
+	JBAS_RESOURCE_STRING,
+} jbas_resource_type;
+
+
+typedef struct
+{
+	jbas_resource_type type;
+	int ref_count;
+	size_t size;
+	
+	union
+	{
+		jbas_int i;
+		jbas_float f;
+		char *str;
+		void *data;
+	};
+	
+} jbas_resource;
+
+typedef struct
+{
+	jbas_resource **refs;
+	int ref_count;
+	int max_count;
+} jbas_resource_manager;
+
+
+
+/**
+	Symbols are links between names in the code and resoruces
+*/
+typedef struct
+{
+	jbas_text *name;
+	jbas_resource *resource;
+} jbas_symbol;
+
+/*
+	Symbol manager translates text ids to 
+*/
+typedef struct
+{
+	jbas_symbol *symbol_storage;
+	bool *is_used;
+	int *free_slots;	
+	int free_slot_count;
+	int max_count;
+} jbas_symbol_manager;
+
+
+
+
+
 
 typedef struct
 {
@@ -132,9 +208,8 @@ typedef struct
 
 typedef struct
 {
-	const char *begin;
-	const char *end;
-} jbas_name_token;
+	jbas_symbol *sym;
+} jbas_symbol_token;
 
 /**
 	Polymorphic token
@@ -150,7 +225,7 @@ typedef struct jbas_token_s
 		jbas_operator_token operator_token;
 		jbas_number_token number_token;
 		jbas_string_token string_token;
-		jbas_name_token name_token;
+		jbas_symbol_token symbol_token;
 	} u;
 
 	// For bidirectional linking
@@ -171,6 +246,41 @@ typedef struct
 } jbas_token_pool;
 
 
+
+/**
+	Environment for BASIC program execution
+*/
+typedef struct
+{
+	jbas_token_pool token_pool; //!< Common token pool
+	jbas_text_manager text_manager;
+	jbas_resource_manager resource_manager;
+	jbas_symbol_manager symbol_manager;
+	jbas_token *tokens; //!< Tokenized program
+} jbas_env;
+
+
+#ifdef JBASIC_IMPLEMENTATION
+
+
+int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *end2)
+{
+	if (!end1 && !end2) return strcasecmp(s1, s2);
+	if (end1 && end2)
+	{
+		size_t l1 = end1 - s1;
+		size_t l2 = end2 - s2;
+
+		if (l1 != l2) return (end1 - s1) - (end2 - s2);
+		else return strncasecmp(s1, s2, l1);
+	}
+
+	size_t len;
+	if (end1) len = end1 - s1;
+	else len = end2 - s2;
+	if (end2 && end2 - s2 < len) len = end2 - s2; 
+	return strncasecmp(s1, s2, len);
+}
 
 
 jbas_error jbas_text_manager_init(jbas_text_manager *tm, int text_count)
@@ -285,7 +395,7 @@ jbas_error jbas_text_destroy(jbas_text_manager *tm, jbas_text *txt)
 }
 
 
-jbas_error jbas_text_manager_destroy(jbas_text_manager *tm)
+void jbas_text_manager_destroy(jbas_text_manager *tm)
 {
 	// Destroy all the stored texts first
 	for (int i = 0; i < tm->max_count; i++)
@@ -295,7 +405,6 @@ jbas_error jbas_text_manager_destroy(jbas_text_manager *tm)
 	free(tm->text_storage);
 	free(tm->free_slots);
 	free(tm->is_used);
-	return JBAS_OK;
 }
 
 
@@ -316,38 +425,6 @@ jbas_error jbas_text_manager_destroy(jbas_text_manager *tm)
 */
 
 
-typedef enum
-{
-	JBAS_RESOURCE_INT,
-	JBAS_RESOURCE_FLOAT,
-	JBAS_RESOURCE_INT_ARRAY,
-	JBAS_RESOURCE_FLOAT_ARRAY,
-	JBAS_RESOURCE_STRING,
-} jbas_resource_type;
-
-
-typedef struct
-{
-	jbas_resource_type type;
-	int ref_count;
-	size_t size;
-	
-	union
-	{
-		jbas_int i;
-		jbas_float f;
-		char *str;
-		void *data;
-	};
-	
-} jbas_resource;
-
-typedef struct
-{
-	jbas_resource **refs;
-	int ref_count;
-	int max_count;
-} jbas_resource_manager;
 
 jbas_error jbas_resource_manager_init(jbas_resource_manager *rm, int max_count)
 {
@@ -361,16 +438,12 @@ jbas_error jbas_resource_manager_init(jbas_resource_manager *rm, int max_count)
 	return JBAS_OK;
 }
 
-jbas_error jbas_resource_manager_destroy(jbas_resource_manager *rm)
+void jbas_resource_manager_destroy(jbas_resource_manager *rm)
 {
-	if (rm->ref_count)
-		return JBAS_RESOURCE_MANAGER_NOT_EMPTY;
-
 	free(rm->refs);
-	return JBAS_OK;
 }
 
-jbas_error jbas_resource_delete(jbas_resource *res)
+void jbas_resource_delete(jbas_resource *res)
 {
 	switch (res->type)
 	{
@@ -381,7 +454,6 @@ jbas_error jbas_resource_delete(jbas_resource *res)
 	}
 
 	free(res);
-	return JBAS_OK;
 }
 
 jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm)
@@ -470,40 +542,11 @@ jbas_error jbas_create_float(jbas_resource_manager *rm, jbas_resource **res, jba
 
 
 
-
-typedef enum
-{
-	JBAS_VARIABLE,
-	JBAS_LABEL,
-	JBAS_FUNCTION,	
-} jbas_symbol_type;
-
-typedef struct
-{
-	jbas_text name;
-	jbas_symbol_type type;
-
-} jbas_symbol;
-
-/*
-	Symbol manager translates text ids to 
-*/
-typedef struct
-{
-	jbas_symbol *symbol_storage;
-	bool *is_used;
-	int *free_slots;	
-	int free_slot_count;
-	int max_count;
-} jbas_symbol_manager;
-
-
 jbas_error jbas_symbol_manager_init(jbas_symbol_manager *sm, int symbol_count)
 {
 	sm->max_count = symbol_count;
 	sm->free_slot_count = symbol_count;
 
-	// Allocate some memory
 	sm->symbol_storage = calloc(symbol_count, sizeof(jbas_symbol));
 	sm->is_used = calloc(symbol_count, sizeof(bool));
 	sm->free_slots = calloc(symbol_count, sizeof(int));
@@ -522,50 +565,104 @@ jbas_error jbas_symbol_manager_init(jbas_symbol_manager *sm, int symbol_count)
 	return JBAS_OK;
 }
 
-jbas_error jbas_symbol_manager_destroy(jbas_symbol_manager *sm)
-{
-	free(sm->symbol_storage);
-	free(sm->is_used);
-	free(sm->free_slots);
-	return JBAS_OK;
-}
-
-jbas_error jbas_create_symbol(jbas_symbol_manager *sm, jbas_symbol *sym, const char *name)
-{
-
-}
-
-jbas_error jbas_delete_symbol(jbas_symbol_manager *sm, const char *name)
-{
-
-}
-
-jbas_error jbas_symbol_lookup(jbas_symbol_manager *sm, const char *name, jbas_symbol *sym)
-{
-
-}
-
 
 
 
 /**
-	Environment for BASIC program execution
+	Registers a new symbol name in a jbas_environment. No duplicates are allowed.
+	The symbol name is also stored as a jbas_text structure.
+
+	Name and resource object management are left up to the user! (I mean myself...)
 */
-typedef struct
+jbas_error jbas_symbol_create(jbas_env *env, jbas_symbol **sym, const char *s, const char *end)
 {
-	jbas_token_pool token_pool; //!< Common token pool
-	jbas_text_manager text_manager;
-	jbas_resource_manager resource_manager;
-	jbas_symbol_manager symbol_manager;
-	jbas_token *tokens; //!< Tokenized program
-} jbas_env;
+	jbas_symbol_manager *sm = &env->symbol_manager;
+	jbas_text_manager *tm = &env->text_manager;
+
+	// No empty space
+	if (!sm->free_slot_count) return JBAS_SYMBOL_MANAGER_OVERFLOW;
+
+	// Look for collisions
+	for (int i = 0; i < sm->max_count; i++)
+	{
+		if (!sm->is_used[i]) continue;
+		if (!jbas_namecmp(s, end, sm->symbol_storage[i].name->str, NULL))
+		{
+			*sym = &sm->symbol_storage[i];
+			return JBAS_SYMBOL_COLLISION;
+		}
+	}
+
+	// Actually create the symbol
+	jbas_text *name_text;
+	jbas_error err = jbas_text_lookup_create(tm, s, end, &name_text);
+	if (err) return err;
+
+	// Get an empty slot
+	int slot = sm->free_slots[--sm->free_slot_count];
+	sm->is_used[slot] = true;
+
+	sm->symbol_storage[slot].name = name_text;
+	sm->symbol_storage[slot].resource = NULL;
+	*sym = &sm->symbol_storage[slot];
+
+	return JBAS_OK;
+}
+
+/**
+	\warning This function does not delete text and resource objects associated with deleted symbol
+*/
+void jbas_symbol_destroy(jbas_symbol_manager *sm, jbas_symbol *sym)
+{
+	int slot = sym - sm->symbol_storage;
+	if (slot >= sm->max_count) return;
+
+	sm->free_slots[sm->free_slot_count++] = slot;
+	sm->is_used[slot] = false;
+}
+
+
+/**
+	Looks symbol up in a symbol_manager by name. When no match is found
+	a NULL pointer is returned through parameter `sym`
+*/
+jbas_error jbas_symbol_lookup(jbas_symbol_manager *sm, jbas_symbol **sym, const char *s, const char *end)
+{
+	for (int i = 0; i < sm->max_count; i++)
+	{
+		if (!sm->is_used[i]) continue;
+		if (!jbas_namecmp(s, end, sm->symbol_storage[i].name->str, NULL))
+		{
+			*sym = &sm->symbol_storage[i];
+			return JBAS_OK;
+		}
+	}
+
+	*sym = NULL;
+	return JBAS_OK;
+}
+
+
+/**
+	Desrtoys all the symbols inside too
+*/
+void jbas_symbol_manager_destroy(jbas_symbol_manager *sm)
+{
+	for (int i = 0; i < sm->max_count; i++)
+		if (sm->is_used[i])
+			jbas_symbol_destroy(sm, &sm->symbol_storage[i]);
+
+	free(sm->symbol_storage);
+	free(sm->is_used);
+	free(sm->free_slots);
+}
 
 
 
 
 
 
-#ifdef JBASIC_IMPLEMENTATION
+
 
 
 
@@ -578,36 +675,84 @@ int jbas_is_name_char(char c)
 	return isalpha(c) || (c == '_');
 }
 
+const char *jbas_debug_keyword_str(jbas_keyword id)
+{
+	for (int i = 0; i < JBAS_KEYWORD_COUNT; i++)
+		if (jbas_keywords[i].id == id)
+			return jbas_keywords[i].name;
+	return NULL;
+}
+
+const char *jbas_debug_operator_str(jbas_operator id)
+{
+	// This is risky :c
+	const static char *str[] =
+	{
+		"NOT",
+		"AND",
+		"OR",
+		"=",
+		"!=",
+		"<",
+		">",
+		"<=",
+		">=",
+		"+",
+		"-",
+		"*",
+		"/",
+		"%"
+	};
+	const int size = sizeof(str) / sizeof(str[0]);
+
+	if (id >= 0 && id < size)
+		return str[id];
+	else
+		return "???";
+}
+
 /**
 	Dumps token to stderr
 */
 void jbas_debug_dump_token(FILE *f, const jbas_token *token)
 {	
+	fprintf(f, " ");
+
 	switch (token->type)
 	{
 		case JBAS_TOKEN_KEYWORD:
-			fprintf(f, "KEYWORD");
+			fprintf(f, JBAS_COLOR_BLUE "%s" JBAS_COLOR_RESET, jbas_debug_keyword_str(token->u.keyword_token.id));
 			break;
 
 		case JBAS_TOKEN_STRING:
-			fprintf(f, "'%s'", token->u.string_token.txt->str);
+			fprintf(f, JBAS_COLOR_GREEN "'%s'" JBAS_COLOR_RESET, token->u.string_token.txt->str);
 			break;
 
 		case JBAS_TOKEN_NUMBER:
-			fprintf(f, "NUMBER");
+			if (token->u.number_token.is_integer)
+				fprintf(f, JBAS_COLOR_RED "%d" JBAS_COLOR_RESET, token->u.number_token.value.i);
+			else
+				fprintf(f, JBAS_COLOR_RED "%f" JBAS_COLOR_RESET, token->u.number_token.value.f);
+			break;
+
+		case JBAS_TOKEN_OPERATOR:
+			fprintf(f, JBAS_COLOR_YELLOW "%s" JBAS_COLOR_RESET, jbas_debug_operator_str(token->u.operator_token.id));
 			break;
 
 		case JBAS_TOKEN_DELIMITER:
 			fprintf(f, "\n");
 			break;
 
+		case JBAS_TOKEN_SYMBOL:
+			fprintf(f, JBAS_COLOR_RESET "%s" JBAS_COLOR_RESET, token->u.symbol_token.sym->name->str);
+			break;
+
 		default:
 			fprintf(f, "(%d?)", token->type );
 			break;
 	}
-
-	fprintf(f, " ");
 }
+
 
 jbas_error jbas_print(const jbas_token *token, int count)
 {
@@ -793,24 +938,37 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		return JBAS_OK;
 	}
 
-	// A variable/keyword
+	// A symbol/keyword
 	const char *name_end = s;
 	while (jbas_is_name_char(*name_end)) name_end++;
-	token->type = JBAS_TOKEN_NAME;
-	token->u.name_token.begin = s;
-	token->end = *next = token->u.name_token.end = name_end;
-
+	*next = name_end;
+	
+	// Keyword check
 	for (int i = 0; i < JBAS_KEYWORD_COUNT; i++)
 	{
-		if (name_end - s == strlen(jbas_keywords[i].name)
-			&& !strncasecmp(jbas_keywords[i].name, s, name_end - s))
+		if (!jbas_namecmp(s, name_end, jbas_keywords[i].name, NULL))
 		{
+			// Found matching keyword
 			token->type = JBAS_TOKEN_KEYWORD;
 			token->u.keyword_token.id = jbas_keywords[i].id;
 			return JBAS_OK;
 		}
 	}
 
+	// It's a symbol token
+	{
+		token->type = JBAS_TOKEN_SYMBOL;	
+		jbas_symbol *sym;
+		jbas_error err;
+		
+		err = jbas_symbol_create(env, &sym, s, name_end);
+		if (err == JBAS_OK || err == JBAS_SYMBOL_COLLISION)
+			token->u.symbol_token.sym = sym;
+		else
+			return err;
+		
+		
+	}
 	return JBAS_OK;
 }
 
@@ -1029,7 +1187,7 @@ jbas_error jbas_tokenize_string(jbas_env *env, const char *str)
 	return JBAS_OK;
 }
 
-jbas_error jbas_env_init(jbas_env *env, int token_count, int text_count)
+jbas_error jbas_env_init(jbas_env *env, int token_count, int text_count, int symbol_count, int resource_count)
 {
 	env->tokens = NULL;
 	jbas_error err;
@@ -1040,14 +1198,21 @@ jbas_error jbas_env_init(jbas_env *env, int token_count, int text_count)
 	err = jbas_text_manager_init(&env->text_manager, text_count);
 	if (err) return err;
 
+	err = jbas_symbol_manager_init(&env->symbol_manager, symbol_count);
+	if (err) return err;
+
+	err = jbas_resource_manager_init(&env->resource_manager, resource_count);
+	if (err) return err;
+
 	return JBAS_OK;
 }
 
-jbas_error jbas_env_destroy(jbas_env *env)
+void jbas_env_destroy(jbas_env *env)
 {
-	jbas_text_manager_destroy(&env->text_manager);
 	jbas_token_pool_destroy(&env->token_pool);
-	return JBAS_OK;
+	jbas_text_manager_destroy(&env->text_manager);
+	jbas_symbol_manager_destroy(&env->symbol_manager);
+	jbas_resource_manager_destroy(&env->resource_manager);
 }
 
 #endif
