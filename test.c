@@ -9,7 +9,7 @@ int main(void)
 
 	const char *lines = 
 	"A = 7 + 5 + 10\n"
-	"A = 7 + 2\n";
+	"A = 1 + 7 + 2 * ( 3.0 / (1 + 1) )\n";
 	/*
 	"TEST_STR = 'this is a test string'; PRINT 'hehe'\n"
 	"A = 34\n"

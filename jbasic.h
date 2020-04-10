@@ -11,6 +11,7 @@ extern "C" {
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 
 /*
 	=== JBASIC ===
@@ -49,6 +50,8 @@ typedef enum
 	JBAS_SYMBOL_COLLISION,
 	JBAS_TYPE_MISMATCH,
 	JBAS_CAST_FAILED,
+	JBAS_SYNTAX_UNMATCHED_PARENTHESIS,
+	JBAS_CANNOT_REMOVE_PARENTHESIS,
 } jbas_error;
 
 typedef enum
@@ -60,6 +63,7 @@ typedef enum
  	JBAS_TOKEN_RPAREN,
  	JBAS_TOKEN_NUMBER,
 	JBAS_TOKEN_STRING,
+	JBAS_TOKEN_COMMA,
 	JBAS_TOKEN_DELIMITER,
 } jbas_token_type;
 
@@ -70,24 +74,6 @@ typedef enum
 	JBAS_KW_THEN,
 	JBAS_KW_ENDIF
 } jbas_keyword;
-
-// typedef enum
-// {
-// 	JBAS_OP_NOT,
-// 	JBAS_OP_AND,
-// 	JBAS_OP_OR,
-// 	JBAS_OP_EQ,
-// 	JBAS_OP_NEQ,
-// 	JBAS_OP_LESS,
-// 	JBAS_OP_GREATER,
-// 	JBAS_OP_GEQ,
-// 	JBAS_OP_LEQ,
-// 	JBAS_OP_ADD,
-// 	JBAS_OP_SUB,
-// 	JBAS_OP_MUL,
-// 	JBAS_OP_DIV,
-// 	JBAS_OP_MOD,
-// } jbas_operator_type;
 
 
 static const struct {const char *name; jbas_keyword id;} jbas_keywords[] = 
@@ -261,7 +247,8 @@ typedef enum
 {
 	JBAS_OP_UNARY_PREFIX,
 	JBAS_OP_UNARY_SUFFIX,
-	JBAS_OP_BINARY,
+	JBAS_OP_BINARY_LR,
+	JBAS_OP_BINARY_RL,
 } jbas_operator_type;
 
 
@@ -308,6 +295,40 @@ void jbas_token_copy(jbas_token *dest, jbas_token *src)
 	dest->r = r;
 }
 
+/**
+	Removes parenthesis if there's only one token inside.
+	\note Provided list pointer remains valid as in other operations
+*/
+jbas_error jbas_remove_parenthesis(jbas_env *env, jbas_token *t)
+{
+	if (t->type == JBAS_TOKEN_LPAREN)
+	{
+		if (!t->r) return JBAS_SYNTAX_UNMATCHED_PARENTHESIS;
+		jbas_token *r = t->r->r;
+		if (r->type != JBAS_TOKEN_RPAREN) return JBAS_CANNOT_REMOVE_PARENTHESIS;
+		
+		// Replace left parentheses with the value from the inside
+		jbas_token_copy(t, t->r);
+
+		jbas_token *h;
+		jbas_error err;
+
+		h = t->r;
+		err = jbas_token_list_return_to_pool(&h, &env->token_pool);
+		if (err) return err;
+
+		h = t->r;
+		err = jbas_token_list_return_to_pool(&h, &env->token_pool);
+		if (err) return err;
+	}
+	else if (t->type == JBAS_TOKEN_RPAREN)
+	{
+		// if (t)
+	}
+
+	return JBAS_OK;
+}
+
 /*
 	TOKEN OPERATIONS MAY *NOT* INVALIDATE ITERATOR (POINTER)
 	POINTING TO THE OPERATOR ITSELF
@@ -329,7 +350,7 @@ void jbas_number_cast(jbas_number_token *n, jbas_number_type t)
 		n->f = n->i;
 }
 
-jbas_error jbas_token_to_number(jbas_token *t)
+jbas_error jbas_token_to_number(jbas_env *env, jbas_token *t)
 {
 	if (t->type == JBAS_TOKEN_NUMBER) return JBAS_OK;
 	if (t->type == JBAS_TOKEN_SYMBOL)
@@ -352,6 +373,14 @@ jbas_error jbas_token_to_number(jbas_token *t)
 			return JBAS_CAST_FAILED;
 
 		jbas_token_copy(t, &num);
+	}
+
+	// Remove parenthesis
+	if (t->type == JBAS_TOKEN_LPAREN || t->type == JBAS_TOKEN_RPAREN)
+	{
+		jbas_error err = jbas_remove_parenthesis(env, t);
+		if (err) return err;
+		return jbas_token_to_number(env, t);
 	}
 
 	return JBAS_CAST_FAILED;
@@ -377,9 +406,9 @@ jbas_error jbas_binary_math_op(	jbas_env *env,
 {
 	// Convert both operands to numbers
 	jbas_error err = JBAS_OK;
-	err = jbas_token_to_number(t->l);
+	err = jbas_token_to_number(env, t->l);
 	if (err) return err;
-	err = jbas_token_to_number(t->r);
+	err = jbas_token_to_number(env, t->r);
 	if (err) return err;
 
 	// From now on, we can assume that the operands are numbers
@@ -460,21 +489,53 @@ jbas_error jbas_op_add(jbas_env *env, jbas_token *t)
 
 jbas_error jbas_op_sub(jbas_env *env, jbas_token *t)
 {
+	jbas_number_token a, b, *r;
+	jbas_binary_math_op(env, t, &a, &b, &r);
+
+	if (r->type == JBAS_NUM_INT)
+		r->i = a.i - b.i;
+	else
+		r->f = a.f - b.f;
+
 	return JBAS_OK;
 }
 
 jbas_error jbas_op_mul(jbas_env *env, jbas_token *t)
 {
+	jbas_number_token a, b, *r;
+	jbas_binary_math_op(env, t, &a, &b, &r);
+
+	if (r->type == JBAS_NUM_INT)
+		r->i = a.i * b.i;
+	else
+		r->f = a.f * b.f;
+
 	return JBAS_OK;
 }
 
 jbas_error jbas_op_div(jbas_env *env, jbas_token *t)
 {
+	jbas_number_token a, b, *r;
+	jbas_binary_math_op(env, t, &a, &b, &r);
+
+	if (r->type == JBAS_NUM_INT)
+		r->i = a.i / b.i;
+	else
+		r->f = a.f / b.f;
+
 	return JBAS_OK;
 }
 
 jbas_error jbas_op_mod(jbas_env *env, jbas_token *t)
 {
+	jbas_number_token a, b, *r;
+	jbas_binary_math_op(env, t, &a, &b, &r);
+
+	if (r->type == JBAS_NUM_INT)
+		r->i = a.i % b.i;
+	else
+		r->f = fmodf(a.f, b.f);
+
 	return JBAS_OK;
 }
 
@@ -486,28 +547,28 @@ jbas_error jbas_op_not(jbas_env *env, jbas_token *t)
 static const jbas_operator jbas_operators[] = 
 {
 	// Assignment operators
-	{.str = "=",   .level = 0, .type = JBAS_OP_BINARY, jbas_op_assign},
+	{.str = "=",   .level = 0, .type = JBAS_OP_BINARY_RL, jbas_op_assign},
 	
 	// Binary logical operators
-	{.str = "&&",  .level = 1, .type = JBAS_OP_BINARY, jbas_op_and},
-	{.str = "||",  .level = 1, .type = JBAS_OP_BINARY, jbas_op_or},
-	{.str = "AND", .level = 1, .type = JBAS_OP_BINARY, jbas_op_and},
-	{.str = "OR",  .level = 1, .type = JBAS_OP_BINARY, jbas_op_or},
+	{.str = "&&",  .level = 1, .type = JBAS_OP_BINARY_LR, jbas_op_and},
+	{.str = "||",  .level = 1, .type = JBAS_OP_BINARY_LR, jbas_op_or},
+	{.str = "AND", .level = 1, .type = JBAS_OP_BINARY_LR, jbas_op_and},
+	{.str = "OR",  .level = 1, .type = JBAS_OP_BINARY_LR, jbas_op_or},
 
 	// Comparison operators
-	{.str = "==",  .level = 2, .type = JBAS_OP_BINARY, jbas_op_eq},
-	{.str = "!=",  .level = 2, .type = JBAS_OP_BINARY, jbas_op_neq},
-	{.str = "<",   .level = 2, .type = JBAS_OP_BINARY, jbas_op_less},
-	{.str = ">",   .level = 2, .type = JBAS_OP_BINARY, jbas_op_greater},
-	{.str = "<=",  .level = 2, .type = JBAS_OP_BINARY, jbas_op_leq},
-	{.str = ">=",  .level = 2, .type = JBAS_OP_BINARY, jbas_op_geq},
+	{.str = "==",  .level = 2, .type = JBAS_OP_BINARY_LR, jbas_op_eq},
+	{.str = "!=",  .level = 2, .type = JBAS_OP_BINARY_LR, jbas_op_neq},
+	{.str = "<",   .level = 2, .type = JBAS_OP_BINARY_LR, jbas_op_less},
+	{.str = ">",   .level = 2, .type = JBAS_OP_BINARY_LR, jbas_op_greater},
+	{.str = "<=",  .level = 2, .type = JBAS_OP_BINARY_LR, jbas_op_leq},
+	{.str = ">=",  .level = 2, .type = JBAS_OP_BINARY_LR, jbas_op_geq},
 
 	// Mathematical operators
-	{.str = "+",   .level = 3, .type = JBAS_OP_BINARY, jbas_op_add},
-	{.str = "-",   .level = 3, .type = JBAS_OP_BINARY, jbas_op_sub},
-	{.str = "*",   .level = 4, .type = JBAS_OP_BINARY, jbas_op_mul},
-	{.str = "/",   .level = 4, .type = JBAS_OP_BINARY, jbas_op_div},
-	{.str = "%",   .level = 4, .type = JBAS_OP_BINARY, jbas_op_mod},
+	{.str = "+",   .level = 3, .type = JBAS_OP_BINARY_LR, jbas_op_add},
+	{.str = "-",   .level = 3, .type = JBAS_OP_BINARY_LR, jbas_op_sub},
+	{.str = "*",   .level = 4, .type = JBAS_OP_BINARY_LR, jbas_op_mul},
+	{.str = "/",   .level = 4, .type = JBAS_OP_BINARY_LR, jbas_op_div},
+	{.str = "%",   .level = 4, .type = JBAS_OP_BINARY_LR, jbas_op_mod},
 
 	// Unary logical operators
 	{.str = "!",   .level = 5, .type = JBAS_OP_UNARY_PREFIX, jbas_op_not},
@@ -1382,24 +1443,40 @@ jbas_error jbas_token_list_return_to_pool(
 	return jbas_token_pool_return(pool, t);
 }
 
-jbas_error jbas_eval(jbas_env *env, jbas_token *const begin)
+jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end)
 {
 	// Run recursively for parenthesis
-	// jbas_token *lpar = begin;
-	// while (lpar != end && lpar->type != JBAS_TOKEN_LPAREN)
-	// 	lpar = lpar->r;
-	
-	// if (lpar && lpar->type == JBAS_TOKEN_LPAREN)
-	// {
-	// 	int nest_level = 1;
-	// 	jbas_token *rpar = lpar;
-	// 	while (rpar != end && (rpar->type != JBAS_TOKEN_RPAREN || nest_level))
-	// 		rpar = rpar->r;
-		
-	// 	jbas_token *p;
+	jbas_token *lpar = begin;
+	while (lpar != end)
+	{
+		// Look for a left parentheses
+		while (lpar != end && lpar->type != JBAS_TOKEN_LPAREN)
+			lpar = lpar->r;
 
+		// Found left parentheses
+		if (lpar && lpar->type == JBAS_TOKEN_LPAREN)
+		{
+			int nest_level = 0;
 
-	// }
+			// Look for the matching right parentheses
+			jbas_token *rpar = lpar->r;
+			while (rpar && rpar != end && (rpar->type != JBAS_TOKEN_RPAREN || nest_level))
+			{
+				if (rpar->type == JBAS_TOKEN_LPAREN) nest_level++;
+				if (rpar->type == JBAS_TOKEN_RPAREN) nest_level--;
+				rpar = rpar->r;
+			}
+
+			// Could not find the matching parentheses
+			if (rpar == end) return JBAS_SYNTAX_UNMATCHED_PARENTHESIS;
+
+			// Run recursively
+			jbas_error err = jbas_eval(env, lpar->r, rpar);
+			if (err) return err;
+
+			lpar = rpar;
+		}	
+	}
 
 	// 2. Evaluate all operations taking order of precedence into account
 	for (int level = JBAS_MAX_OPERATOR_LEVEL; level; level--)
@@ -1407,7 +1484,7 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin)
 		jbas_token *t;
 
 		// Forward pass - suffix operators
-		for (t = begin; t; t = t->r)
+		for (t = begin; t != end; t = t->r)
 		{
 
 		}
@@ -1419,15 +1496,24 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin)
 		// }
 
 		// Forward pass - binary operators
-		for (t = begin; t; t = t->r)
+		for (t = begin; t != end; t = t->r)
 		{
-			//jbas_debug_dump_token(stderr, t);
-			//fprintf(stderr, "|");
 			if (t->type == JBAS_TOKEN_OPERATOR
-				&& t->u.operator_token.op->type == JBAS_OP_BINARY 
+				&& t->u.operator_token.op->type == JBAS_OP_BINARY_LR
 				&& t->u.operator_token.op->level == level)
 			{
 				t->u.operator_token.op->handler(env, t);
+			}
+		}
+
+		// Backward pass - binary operators
+		for (t = jbas_token_list_end(begin); t; t = t->l)
+		{
+			if (t->type == JBAS_TOKEN_OPERATOR
+				&& t->u.operator_token.op->type == JBAS_OP_BINARY_RL
+				&& t->u.operator_token.op->level == level)
+			{
+				// t->u.operator_token.op->handler(env, t);
 			}
 		}
 
@@ -1473,7 +1559,8 @@ jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *co
 
 
 
-	jbas_eval(env, jbas_token_list_begin(expr));
+	jbas_error eval_err = jbas_eval(env, jbas_token_list_begin(expr), NULL);
+	fprintf(stderr, "eval err: %d\n", eval_err);
 
 
 	// DEBUG
@@ -1519,10 +1606,6 @@ jbas_error jbas_tokenize_string(jbas_env *env, const char *str)
 			jbas_error err = jbas_token_list_push_back_from_pool(env->tokens, &env->token_pool, &t, &new_token);
 			env->tokens = new_token;
 			if (err) return err;
-
-			#ifdef JBASIC_DEBUG
-				jbas_debug_dump_token(stderr, &t);
-			#endif
 		}
 		else if (err == JBAS_EMPTY_TOKEN)
 			break;
