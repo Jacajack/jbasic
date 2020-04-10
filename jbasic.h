@@ -30,6 +30,7 @@ extern "C" {
 #define JBAS_COLOR_YELLOW "\x1b[33m"
 #define JBAS_COLOR_BLUE "\x1b[34m"
 #define JBAS_COLOR_MAGENTA "\x1b[35m"
+#define JBAS_COLOR_CYAN "\x1b[36m"
 #define JBAS_COLOR_RESET "\x1b[0m"
 
 typedef enum
@@ -47,6 +48,7 @@ typedef enum
 	JBAS_SYMBOL_MANAGER_OVERFLOW,
 	JBAS_SYMBOL_COLLISION,
 	JBAS_TYPE_MISMATCH,
+	JBAS_CAST_FAILED,
 } jbas_error;
 
 typedef enum
@@ -69,23 +71,24 @@ typedef enum
 	JBAS_KW_ENDIF
 } jbas_keyword;
 
-typedef enum
-{
-	JBAS_OP_NOT,
-	JBAS_OP_AND,
-	JBAS_OP_OR,
-	JBAS_OP_EQ,
-	JBAS_OP_NEQ,
-	JBAS_OP_LESS,
-	JBAS_OP_GREATER,
-	JBAS_OP_GEQ,
-	JBAS_OP_LEQ,
-	JBAS_OP_ADD,
-	JBAS_OP_SUB,
-	JBAS_OP_MUL,
-	JBAS_OP_DIV,
-	JBAS_OP_MOD,
-} jbas_operator;
+// typedef enum
+// {
+// 	JBAS_OP_NOT,
+// 	JBAS_OP_AND,
+// 	JBAS_OP_OR,
+// 	JBAS_OP_EQ,
+// 	JBAS_OP_NEQ,
+// 	JBAS_OP_LESS,
+// 	JBAS_OP_GREATER,
+// 	JBAS_OP_GEQ,
+// 	JBAS_OP_LEQ,
+// 	JBAS_OP_ADD,
+// 	JBAS_OP_SUB,
+// 	JBAS_OP_MUL,
+// 	JBAS_OP_DIV,
+// 	JBAS_OP_MOD,
+// } jbas_operator_type;
+
 
 static const struct {const char *name; jbas_keyword id;} jbas_keywords[] = 
 {
@@ -94,7 +97,7 @@ static const struct {const char *name; jbas_keyword id;} jbas_keywords[] =
 	{"ENDIF", JBAS_KW_ENDIF},
 	{"THEN", JBAS_KW_THEN},
 };
-#define JBAS_KEYWORD_COUNT ((sizeof jbas_keywords) / (sizeof jbas_keywords[0]))
+#define JBAS_KEYWORD_COUNT ((sizeof(jbas_keywords)) / (sizeof(jbas_keywords[0])))
 
 /*
 	Token structures
@@ -179,26 +182,32 @@ typedef struct
 
 
 
-
+typedef struct jbas_operator_s jbas_operator;
 
 typedef struct
 {
 	jbas_text *txt;
 } jbas_string_token;
 
+typedef enum
+{
+	JBAS_NUM_INT,
+	JBAS_NUM_FLOAT,
+} jbas_number_type;
+
 typedef struct
 {
-	int is_integer;
+	jbas_number_type type;
 	union
 	{
 		jbas_int i;
 		jbas_float f;
-	} value;
+	};
 } jbas_number_token;
 
 typedef struct
 {
-	jbas_operator id;
+	const jbas_operator *op;
 } jbas_operator_token;
 
 typedef struct
@@ -247,6 +256,15 @@ typedef struct
 
 
 
+
+typedef enum
+{
+	JBAS_OP_UNARY_PREFIX,
+	JBAS_OP_UNARY_SUFFIX,
+	JBAS_OP_BINARY,
+} jbas_operator_type;
+
+
 /**
 	Environment for BASIC program execution
 */
@@ -258,6 +276,254 @@ typedef struct
 	jbas_symbol_manager symbol_manager;
 	jbas_token *tokens; //!< Tokenized program
 } jbas_env;
+
+
+struct jbas_operator_s
+{
+	const char *str;
+	int level;
+	jbas_operator_type type;
+	jbas_error (*handler)(jbas_env *env, jbas_token *t);
+};
+
+
+// Forward declarations
+
+jbas_error jbas_token_list_return_to_pool(
+	jbas_token **list_handle,
+	jbas_token_pool *pool);
+
+
+
+
+
+
+
+
+void jbas_token_copy(jbas_token *dest, jbas_token *src)
+{
+	jbas_token *l = dest->l, *r = dest->r;
+	*dest = *src;
+	dest->l = l;
+	dest->r = r;
+}
+
+/*
+	TOKEN OPERATIONS MAY *NOT* INVALIDATE ITERATOR (POINTER)
+	POINTING TO THE OPERATOR ITSELF
+*/
+
+jbas_number_type jbas_number_type_promotion(jbas_number_type a, jbas_number_type b)
+{
+	if (a >= b) return a;
+	else return b;
+}
+
+void jbas_number_cast(jbas_number_token *n, jbas_number_type t)
+{
+	if (n->type == t) return;
+	n->type = t;
+	if (t == JBAS_NUM_INT)
+		n->i = n->f;
+	else if (t == JBAS_NUM_FLOAT)
+		n->f = n->i;
+}
+
+jbas_error jbas_token_to_number(jbas_token *t)
+{
+	if (t->type == JBAS_TOKEN_NUMBER) return JBAS_OK;
+	if (t->type == JBAS_TOKEN_SYMBOL)
+	{
+		jbas_token num = {.type = JBAS_TOKEN_NUMBER};
+		jbas_symbol *sym = t->u.symbol_token.sym;
+		jbas_resource *res = sym->resource;
+
+		if (res->type == JBAS_RESOURCE_INT)
+		{
+			num.u.number_token.type = JBAS_NUM_INT;
+			num.u.number_token.i = res->i;
+		}
+		else if (res->type == JBAS_RESOURCE_FLOAT)
+		{
+			num.u.number_token.type = JBAS_NUM_FLOAT;
+			num.u.number_token.f = res->f;
+		}
+		else
+			return JBAS_CAST_FAILED;
+
+		jbas_token_copy(t, &num);
+	}
+
+	return JBAS_CAST_FAILED;
+}
+
+
+
+jbas_error jbas_op_assign(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+/**
+	Binary mathematical operation - both operands are converted to a common larger numeric type
+	and are removed afterwards. The operator token is replaced with number token of
+	resulting type.
+*/
+jbas_error jbas_binary_math_op(	jbas_env *env,
+								jbas_token *t,
+								jbas_number_token *a,
+								jbas_number_token *b,
+								jbas_number_token **r)
+{
+	// Convert both operands to numbers
+	jbas_error err = JBAS_OK;
+	err = jbas_token_to_number(t->l);
+	if (err) return err;
+	err = jbas_token_to_number(t->r);
+	if (err) return err;
+
+	// From now on, we can assume that the operands are numbers
+	t->type = JBAS_TOKEN_NUMBER;
+	*r = &t->u.number_token;
+	*a = t->l->u.number_token;
+	*b = t->r->u.number_token;
+
+	// Get the resulting numeric type
+	jbas_number_type type = jbas_number_type_promotion(a->type, b->type);
+	(*r)->type = type;
+	
+	// Convert both operands to the same type
+	jbas_number_cast(a, type);
+	jbas_number_cast(b, type);
+	
+	// Remove both operands
+	jbas_token *h = t->l;
+	if (h) jbas_token_list_return_to_pool(&h, &env->token_pool);
+	h = t->r;
+	if (h) jbas_token_list_return_to_pool(&h, &env->token_pool);
+	
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_and(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_or(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_eq(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_neq(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_less(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_greater(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_leq(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_geq(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_add(jbas_env *env, jbas_token *t)
+{
+	jbas_number_token a, b, *r;
+	jbas_binary_math_op(env, t, &a, &b, &r);
+
+	if (r->type == JBAS_NUM_INT)
+		r->i = a.i + b.i;
+	else
+		r->f = a.f + b.f;
+
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_sub(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_mul(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_div(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_mod(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_not(jbas_env *env, jbas_token *t)
+{
+	return JBAS_OK;
+}
+
+static const jbas_operator jbas_operators[] = 
+{
+	// Assignment operators
+	{.str = "=",   .level = 0, .type = JBAS_OP_BINARY, jbas_op_assign},
+	
+	// Binary logical operators
+	{.str = "&&",  .level = 1, .type = JBAS_OP_BINARY, jbas_op_and},
+	{.str = "||",  .level = 1, .type = JBAS_OP_BINARY, jbas_op_or},
+	{.str = "AND", .level = 1, .type = JBAS_OP_BINARY, jbas_op_and},
+	{.str = "OR",  .level = 1, .type = JBAS_OP_BINARY, jbas_op_or},
+
+	// Comparison operators
+	{.str = "==",  .level = 2, .type = JBAS_OP_BINARY, jbas_op_eq},
+	{.str = "!=",  .level = 2, .type = JBAS_OP_BINARY, jbas_op_neq},
+	{.str = "<",   .level = 2, .type = JBAS_OP_BINARY, jbas_op_less},
+	{.str = ">",   .level = 2, .type = JBAS_OP_BINARY, jbas_op_greater},
+	{.str = "<=",  .level = 2, .type = JBAS_OP_BINARY, jbas_op_leq},
+	{.str = ">=",  .level = 2, .type = JBAS_OP_BINARY, jbas_op_geq},
+
+	// Mathematical operators
+	{.str = "+",   .level = 3, .type = JBAS_OP_BINARY, jbas_op_add},
+	{.str = "-",   .level = 3, .type = JBAS_OP_BINARY, jbas_op_sub},
+	{.str = "*",   .level = 4, .type = JBAS_OP_BINARY, jbas_op_mul},
+	{.str = "/",   .level = 4, .type = JBAS_OP_BINARY, jbas_op_div},
+	{.str = "%",   .level = 4, .type = JBAS_OP_BINARY, jbas_op_mod},
+
+	// Unary logical operators
+	{.str = "!",   .level = 5, .type = JBAS_OP_UNARY_PREFIX, jbas_op_not},
+	{.str = "NOT", .level = 5, .type = JBAS_OP_UNARY_PREFIX, jbas_op_not},
+
+};
+#define JBAS_OPERATOR_COUNT ((sizeof(jbas_operators)) / (sizeof(jbas_operators[0])))
+
+int jbas_is_operator_char(char c)
+{
+	return isalpha(c) || strchr("=<>!&|+-*/%", c);
+}
+
+#define JBAS_MAX_OPERATOR_LEVEL 5
+
+
 
 
 #ifdef JBASIC_IMPLEMENTATION
@@ -275,11 +541,21 @@ int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *e
 		else return strncasecmp(s1, s2, l1);
 	}
 
-	size_t len;
-	if (end1) len = end1 - s1;
-	else len = end2 - s2;
-	if (end2 && end2 - s2 < len) len = end2 - s2; 
-	return strncasecmp(s1, s2, len);
+	size_t l1, l2;
+	if (end1)
+	{
+		l1 = end1 - s1;
+		l2 = strlen(s2);
+		if (l1 != l2) return (end1 - s1) - (end2 - s2);
+		else return strncasecmp(s1, s2, l1);
+	}
+	else
+	{
+		l1 = strlen(s1);
+		l2 = end2 - s2;
+		if (l1 != l2) return (end1 - s1) - (end2 - s2);
+		else return strncasecmp(s1, s2, l1);
+	}
 }
 
 
@@ -675,6 +951,7 @@ int jbas_is_name_char(char c)
 	return isalpha(c) || (c == '_');
 }
 
+
 const char *jbas_debug_keyword_str(jbas_keyword id)
 {
 	for (int i = 0; i < JBAS_KEYWORD_COUNT; i++)
@@ -683,33 +960,6 @@ const char *jbas_debug_keyword_str(jbas_keyword id)
 	return NULL;
 }
 
-const char *jbas_debug_operator_str(jbas_operator id)
-{
-	// This is risky :c
-	const static char *str[] =
-	{
-		"NOT",
-		"AND",
-		"OR",
-		"=",
-		"!=",
-		"<",
-		">",
-		"<=",
-		">=",
-		"+",
-		"-",
-		"*",
-		"/",
-		"%"
-	};
-	const int size = sizeof(str) / sizeof(str[0]);
-
-	if (id >= 0 && id < size)
-		return str[id];
-	else
-		return "???";
-}
 
 /**
 	Dumps token to stderr
@@ -717,6 +967,12 @@ const char *jbas_debug_operator_str(jbas_operator id)
 void jbas_debug_dump_token(FILE *f, const jbas_token *token)
 {	
 	fprintf(f, " ");
+
+	if (!token)
+	{
+		fprintf(f, JBAS_COLOR_RED "<NULL>" JBAS_COLOR_RESET);
+		return;
+	}
 
 	switch (token->type)
 	{
@@ -729,18 +985,23 @@ void jbas_debug_dump_token(FILE *f, const jbas_token *token)
 			break;
 
 		case JBAS_TOKEN_NUMBER:
-			if (token->u.number_token.is_integer)
-				fprintf(f, JBAS_COLOR_RED "%d" JBAS_COLOR_RESET, token->u.number_token.value.i);
+			if (token->u.number_token.type == JBAS_NUM_INT)
+				fprintf(f, JBAS_COLOR_RED "%d" JBAS_COLOR_RESET, token->u.number_token.i);
 			else
-				fprintf(f, JBAS_COLOR_RED "%f" JBAS_COLOR_RESET, token->u.number_token.value.f);
+				fprintf(f, JBAS_COLOR_RED "%f" JBAS_COLOR_RESET, token->u.number_token.f);
 			break;
 
 		case JBAS_TOKEN_OPERATOR:
-			fprintf(f, JBAS_COLOR_YELLOW "%s" JBAS_COLOR_RESET, jbas_debug_operator_str(token->u.operator_token.id));
+			fprintf(f, JBAS_COLOR_YELLOW "%s" JBAS_COLOR_RESET, token->u.operator_token.op->str);
 			break;
 
 		case JBAS_TOKEN_DELIMITER:
-			fprintf(f, "\n");
+			fprintf(f, ";\n");
+			break;
+
+		case JBAS_TOKEN_LPAREN:
+		case JBAS_TOKEN_RPAREN:
+			fprintf(f, JBAS_COLOR_CYAN "%c" JBAS_COLOR_RESET, token->type == JBAS_TOKEN_LPAREN ? '(' : ')');
 			break;
 
 		case JBAS_TOKEN_SYMBOL:
@@ -832,11 +1093,11 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		while (*num_end && isdigit(*num_end)) num_end++;
 
 		// TODO use custom interpreter
-		token->u.number_token.is_integer = is_int;
+		token->u.number_token.type = is_int ? JBAS_NUM_INT : JBAS_NUM_FLOAT;
 		if (is_int)
-			sscanf(s, "%d", &token->u.number_token.value.i);
+			sscanf(s, "%d", &token->u.number_token.i);
 		else
-			sscanf(s, "%f", &token->u.number_token.value.f);
+			sscanf(s, "%f", &token->u.number_token.f);
 
 		*next = num_end;
 		token->type = JBAS_TOKEN_NUMBER;
@@ -868,60 +1129,6 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		return err;
 	}
 
-	// If it's one of '+-*/=<>' then it's an operator
-	if (strchr("+-*/=<>%!", *s))
-	{
-		token->end = *next = s + 1;
-		token->type = JBAS_TOKEN_OPERATOR;
-
-		switch (*s)
-		{
-			case '!':
-				token->u.operator_token.id = JBAS_OP_NOT;
-				if (s[1] == '=')
-					token->u.operator_token.id = JBAS_OP_NEQ;
-				break;
-
-			case '+':
-				token->u.operator_token.id = JBAS_OP_ADD;
-				break;
-
-			case '-':
-				token->u.operator_token.id = JBAS_OP_SUB;
-				break;
-
-			case '*':
-				token->u.operator_token.id = JBAS_OP_MUL;
-				break;
-
-			case '/':
-				token->u.operator_token.id = JBAS_OP_DIV;
-				break;
-
-			case '%':
-				token->u.operator_token.id = JBAS_OP_MOD;
-				break;
-
-			case '=':
-				token->u.operator_token.id = JBAS_OP_EQ;
-				break;
-
-			case '<':
-				token->u.operator_token.id = JBAS_OP_LESS;
-				if (s[1] == '=')
-					token->u.operator_token.id = JBAS_OP_LEQ;
-				break;
-
-			case '>':
-				token->u.operator_token.id = JBAS_OP_GREATER;
-				if (s[1] == '=')
-					token->u.operator_token.id = JBAS_OP_GEQ;
-				break;
-		}
-
-		return JBAS_OK;
-	}
-
 	// Left parenthesis
 	if (*s == '(')
 	{
@@ -936,6 +1143,21 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		token->end = *next = s + 1;
 		token->type = JBAS_TOKEN_RPAREN;
 		return JBAS_OK;
+	}
+
+	// An operator
+	const char *operator_end = s;
+	while (jbas_is_operator_char(*operator_end)) operator_end++;
+	*next = operator_end;
+
+	for (int i = 0; i < JBAS_OPERATOR_COUNT; i++)
+	{
+		if (!jbas_namecmp(s, operator_end, jbas_operators[i].str, NULL))
+		{
+			token->type = JBAS_TOKEN_OPERATOR;
+			token->u.operator_token.op = &jbas_operators[i];
+			return JBAS_OK;
+		}
 	}
 
 	// A symbol/keyword
@@ -955,7 +1177,7 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		}
 	}
 
-	// It's a symbol token
+	// It must be a symbol token
 	{
 		token->type = JBAS_TOKEN_SYMBOL;	
 		jbas_symbol *sym;
@@ -969,6 +1191,10 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		
 		
 	}
+
+
+	// Todo failed token!!!!
+
 	return JBAS_OK;
 }
 
@@ -982,6 +1208,7 @@ jbas_error jbas_token_pool_get(
 {
 	if (!pool->unused_count) return JBAS_TOKEN_POOL_EMPTY;
 	*t = pool->unused_stack[--pool->unused_count];
+	// fprintf(stderr, "\ngot %p from pool\n", *t);
 	return JBAS_OK;
 }
 
@@ -991,6 +1218,7 @@ jbas_error jbas_token_pool_return(
 {
 	if (pool->unused_count >= pool->pool_size) return JBAS_TOKEN_POOL_OVERFLOW;
 	pool->unused_stack[pool->unused_count++] = t;
+	// fprintf(stderr, "\nreturned %p to pool\n", t);
 	return JBAS_OK;
 }
 
@@ -1070,7 +1298,7 @@ jbas_error jbas_token_list_insert_from_pool(
 	{
 		t->l = NULL;
 		t->r = NULL;
-		if(inserted) *inserted = t;
+		if (inserted) *inserted = t;
 		return JBAS_OK;
 	}
 	else
@@ -1154,7 +1382,125 @@ jbas_error jbas_token_list_return_to_pool(
 	return jbas_token_pool_return(pool, t);
 }
 
+jbas_error jbas_eval(jbas_env *env, jbas_token *const begin)
+{
+	// Run recursively for parenthesis
+	// jbas_token *lpar = begin;
+	// while (lpar != end && lpar->type != JBAS_TOKEN_LPAREN)
+	// 	lpar = lpar->r;
+	
+	// if (lpar && lpar->type == JBAS_TOKEN_LPAREN)
+	// {
+	// 	int nest_level = 1;
+	// 	jbas_token *rpar = lpar;
+	// 	while (rpar != end && (rpar->type != JBAS_TOKEN_RPAREN || nest_level))
+	// 		rpar = rpar->r;
+		
+	// 	jbas_token *p;
 
+
+	// }
+
+	// 2. Evaluate all operations taking order of precedence into account
+	for (int level = JBAS_MAX_OPERATOR_LEVEL; level; level--)
+	{
+		jbas_token *t;
+
+		// Forward pass - suffix operators
+		for (t = begin; t; t = t->r)
+		{
+
+		}
+
+		// // Backward pass - prefix operators
+		// for (; t != begin->l; t = t->l)
+		// {
+
+		// }
+
+		// Forward pass - binary operators
+		for (t = begin; t; t = t->r)
+		{
+			//jbas_debug_dump_token(stderr, t);
+			//fprintf(stderr, "|");
+			if (t->type == JBAS_TOKEN_OPERATOR
+				&& t->u.operator_token.op->type == JBAS_OP_BINARY 
+				&& t->u.operator_token.op->level == level)
+			{
+				t->u.operator_token.op->handler(env, t);
+			}
+		}
+
+		fprintf(stderr, "eval %d: ", level);
+		for (jbas_token *t = jbas_token_list_begin(begin); t; t = t->r)
+			jbas_debug_dump_token(stderr, t);
+		fprintf(stderr, "\n");
+
+	}
+
+	return JBAS_OK;
+}
+
+
+/**
+	Executes one instruction - starting at the provided token and ending at matching delimiter
+	(; for normal instructions, ENDIF for IFs and so on...)
+*/
+jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *const token)
+{
+	// Skip delimiters
+	jbas_token *begin_token = token;
+	while (begin_token && begin_token->type == JBAS_TOKEN_DELIMITER)
+		begin_token = begin_token->r;
+
+	// Create copy of the entire expression
+	//! \todo keyword delimiters
+	jbas_token *t, *expr = NULL;
+	for (t = begin_token; t && t->type != JBAS_TOKEN_DELIMITER; t = t->r)
+	{
+		jbas_token *new_token = NULL;
+		jbas_error err = jbas_token_list_push_back_from_pool(expr, &env->token_pool, t, &new_token);
+		if (err) return err;
+		expr = new_token;
+	}
+	*next = t;
+
+	// DEBUG
+	fprintf(stderr, "Will evaluate: ");
+	for (jbas_token *t = jbas_token_list_begin(expr); t; t = t->r)
+		jbas_debug_dump_token(stderr, t);
+	fprintf(stderr, "\n");
+
+
+
+	jbas_eval(env, jbas_token_list_begin(expr));
+
+
+	// DEBUG
+	fprintf(stderr, "After eval: ");
+	for (jbas_token *t = jbas_token_list_begin(expr); t; t = t->r)
+		jbas_debug_dump_token(stderr, t);
+	fprintf(stderr, "\n");
+
+	// Delete what's left
+	expr = jbas_token_list_begin(expr);
+	while (expr)
+		jbas_token_list_return_to_pool(&expr, &env->token_pool);
+
+	return JBAS_OK;
+}
+
+jbas_error jbas_run_tokens(jbas_env *env)
+{
+	jbas_token *token = jbas_token_list_begin(env->tokens);
+	while (token)
+	{
+		jbas_error err = jbas_run_instruction(env, &token, token);
+		if (err) return err;
+	}
+
+	return JBAS_OK;
+}
 
 /**
 	Performs line tokenization, parsing and executes it in the provided environment

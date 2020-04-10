@@ -1,2 +1,2 @@
 all:
-	clang -o test test.c -Wall -O0 -fsanitize=address -g
+	clang -o test test.c -Wall -O0 -fno-omit-frame-pointer -fsanitize=address -fsanitize=undefined -g
