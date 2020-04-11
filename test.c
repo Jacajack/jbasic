@@ -9,7 +9,9 @@ int main(void)
 
 	const char *lines = 
 	"A = 7 + 5 + 10\n"
-	"A = 1 + 7 + 2 * ( 3.0 / (1 + 1) )\n";
+	"A = 3 *  7 + 2 * -( 3.0 + (1 / - 1) )\n"
+	"M = 3 * 7 = 1 - 2\n";
+	//"Y = 2 + 3 * ( 7.0 / 5 + 4 ) + 3 * ( 21.7 * 55.23 - 3.127 / 12 )\n";
 	/*
 	"TEST_STR = 'this is a test string'; PRINT 'hehe'\n"
 	"A = 34\n"
