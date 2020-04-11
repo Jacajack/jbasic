@@ -46,6 +46,7 @@ typedef enum
 	JBAS_TEXT_MANAGER_OVERFLOW,
 	JBAS_TEXT_MANAGER_MISMATCH,
 	JBAS_RESOURCE_MANAGER_NOT_EMPTY,
+	JBAS_RESOURCE_MANAGER_OVERFLOW,
 	JBAS_SYMBOL_MANAGER_OVERFLOW,
 	JBAS_SYMBOL_COLLISION,
 	JBAS_TYPE_MISMATCH,
@@ -54,7 +55,8 @@ typedef enum
 	JBAS_CANNOT_REMOVE_PARENTHESIS,
 	JBAS_OPERAND_MISSING,
 	JBAS_UNINITIALIZED_SYMBOL, // When evaluated symbol links to no resource
-	JBAS_CANNOT_EVAL_RESOURCE, // When you try to eval an e.g. an array ymbol
+	JBAS_CANNOT_EVAL_RESOURCE, // When you try to eval an e.g. an array symbol
+	JBAS_BAD_ASSIGN,
 } jbas_error;
 
 typedef enum
@@ -114,36 +116,56 @@ typedef struct
 
 typedef enum
 {
-	JBAS_RESOURCE_INT,
-	JBAS_RESOURCE_FLOAT,
+	JBAS_RESOURCE_NUMBER,
 	JBAS_RESOURCE_INT_ARRAY,
 	JBAS_RESOURCE_FLOAT_ARRAY,
 	JBAS_RESOURCE_STRING,
 } jbas_resource_type;
 
 
+typedef enum
+{
+	JBAS_NUM_BOOL,
+	JBAS_NUM_INT,
+	JBAS_NUM_FLOAT,
+} jbas_number_type;
+
 typedef struct
 {
-	jbas_resource_type type;
-	int ref_count;
-	size_t size;
-	
+	jbas_number_type type;
 	union
 	{
 		jbas_int i;
 		jbas_float f;
+	};
+} jbas_number_token;
+
+typedef struct jbas_resource_manager_s jbas_resource_manager;
+
+typedef struct
+{
+	int rm_index;
+
+	jbas_resource_type type;
+	int ref_count;
+
+	size_t size;
+	
+	union
+	{
+		jbas_number_token number;
 		char *str;
 		void *data;
 	};
 	
 } jbas_resource;
 
-typedef struct
+struct jbas_resource_manager_s
 {
 	jbas_resource **refs;
 	int ref_count;
 	int max_count;
-} jbas_resource_manager;
+};
 
 
 
@@ -178,22 +200,6 @@ typedef struct
 	jbas_text *txt;
 } jbas_string_token;
 
-typedef enum
-{
-	JBAS_NUM_BOOL,
-	JBAS_NUM_INT,
-	JBAS_NUM_FLOAT,
-} jbas_number_type;
-
-typedef struct
-{
-	jbas_number_type type;
-	union
-	{
-		jbas_int i;
-		jbas_float f;
-	};
-} jbas_number_token;
 
 typedef struct
 {
@@ -290,9 +296,10 @@ jbas_error jbas_token_list_return_to_pool(
 	jbas_token_pool *pool);
 
 jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end);
-
-
-
+jbas_error jbas_resource_remove_ref(jbas_resource *res);
+jbas_error jbas_resource_add_ref(jbas_resource *res);
+void jbas_resource_copy(jbas_resource *dest, jbas_resource *src);
+jbas_error jbas_resource_create(jbas_resource_manager *rm, jbas_resource **res);
 
 
 
@@ -455,13 +462,8 @@ bool jbas_is_scalar(jbas_token *t)
 
 		switch (res->type)
 		{
-			case JBAS_RESOURCE_INT:
+			case JBAS_RESOURCE_NUMBER:
 				return true;
-				break;
-
-			case JBAS_RESOURCE_FLOAT:
-				return true;
-				break;
 
 			case JBAS_RESOURCE_STRING:
 				return true;
@@ -487,16 +489,9 @@ jbas_error jbas_eval_scalar_symbol(jbas_env *env, jbas_token *t)
 	if (!sym->resource) return JBAS_UNINITIALIZED_SYMBOL;
 	switch (sym->resource->type)
 	{
-		case JBAS_RESOURCE_INT:
+		case JBAS_RESOURCE_NUMBER:
 			res.type = JBAS_TOKEN_NUMBER;
-			res.u.number_token.type = JBAS_NUM_INT;
-			res.u.number_token.i = sym->resource->i;
-			break;
-
-		case JBAS_RESOURCE_FLOAT:
-			res.type = JBAS_TOKEN_NUMBER;
-			res.u.number_token.type = JBAS_NUM_FLOAT;
-			res.u.number_token.f = sym->resource->f;
+			res.u.number_token = sym->resource->number;
 			break;
 
 		default:
@@ -542,6 +537,38 @@ jbas_error jbas_token_to_number_type(jbas_env *env, jbas_token *t, jbas_number_t
 
 jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	if (a->type != JBAS_TOKEN_SYMBOL) return JBAS_BAD_ASSIGN;
+	jbas_symbol *asym = a->u.symbol_token.sym;
+	jbas_resource *dest;
+
+	// Decrement reference count on the resource currently kept in the dest. variable
+	if (asym->resource) jbas_resource_remove_ref(asym->resource);
+
+	// If there's no destination resource, create it
+	if (!asym->resource) jbas_resource_create(&env->resource_manager, &asym->resource);
+	dest = asym->resource;
+
+	
+	switch (b->type)
+	{
+		// If the source is a symbol, copy the resource and we're done
+		case JBAS_TOKEN_SYMBOL:
+			jbas_resource_copy(dest, b->u.symbol_token.sym->resource);
+			break;
+
+		// Number assignment
+		case JBAS_TOKEN_NUMBER:
+			dest->type = JBAS_RESOURCE_NUMBER;
+			dest->number = b->u.number_token;
+			break;
+
+		default:
+			return JBAS_BAD_ASSIGN;
+			break;
+
+	}
+
+	jbas_token_copy(res, b);
 	return JBAS_OK;
 }
 
@@ -627,29 +654,51 @@ jbas_error jbas_op_eq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *r
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_neq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
-{
-	return JBAS_OK;
-}
-
 jbas_error jbas_op_less(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	return JBAS_OK;
 }
 
+
+/**
+	Based on < and = operators
+*/
+jbas_error jbas_op_neq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+{
+	jbas_error err = jbas_op_eq(env, a, b, res);
+	if (err) return err;
+	res->u.number_token.i = !res->u.number_token.i;
+	return JBAS_OK;
+}
+
+/**
+	Based on < and = operators
+*/
 jbas_error jbas_op_greater(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
-	return JBAS_OK;
+	return jbas_op_less(env, b, a, res);
 }
 
+/**
+	Based on < and = operators
+*/
 jbas_error jbas_op_leq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	jbas_token tmp;
+	jbas_error err = jbas_op_less(env, a, b, &tmp);
+	if (err) return err;
+	err = jbas_op_eq(env, a, b, res);
+	if (err) return err;
+	res->u.number_token.i = res->u.number_token.i || tmp.u.number_token.i;
 	return JBAS_OK;
 }
 
+/**
+	Based on < and = operators
+*/
 jbas_error jbas_op_geq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
-	return JBAS_OK;
+	return jbas_op_leq(env, b, a, res);
 }
 
 jbas_error jbas_op_add(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
@@ -1050,7 +1099,6 @@ void jbas_text_manager_destroy(jbas_text_manager *tm)
 */
 
 
-
 jbas_error jbas_resource_manager_init(jbas_resource_manager *rm, int max_count)
 {
 	rm->max_count = max_count;
@@ -1063,30 +1111,45 @@ jbas_error jbas_resource_manager_init(jbas_resource_manager *rm, int max_count)
 	return JBAS_OK;
 }
 
-void jbas_resource_manager_destroy(jbas_resource_manager *rm)
-{
-	free(rm->refs);
-}
-
-void jbas_resource_delete(jbas_resource *res)
+/**
+	Frees memory used by the resource and removes it from the resource manager
+*/
+void jbas_resource_delete(jbas_resource_manager *rm, jbas_resource *res)
 {
 	switch (res->type)
 	{
-		case JBAS_RESOURCE_INT:
-		case JBAS_RESOURCE_FLOAT:
+		case JBAS_RESOURCE_NUMBER:
 		default:
 			break;
 	}
 
+	// Update resource manager refs
+	jbas_resource *m = rm->refs[--rm->ref_count];
+	rm->refs[res->rm_index] = m;
+	m->rm_index = res->rm_index;
+
 	free(res);
 }
 
+/**
+	Frees all resources and the resource manager memory
+*/
+void jbas_resource_manager_destroy(jbas_resource_manager *rm)
+{
+	for (int i = 0; i < rm->ref_count; i++)
+		jbas_resource_delete(rm, rm->refs[i]);
+	free(rm->refs);
+}
+
+/**
+	Deletes resources that have no references
+*/
 jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm)
 {
 	for (int i = 0; i < rm->ref_count; i++)
 	{
 		if (rm->refs[i]->ref_count == 0)
-			jbas_resource_delete(rm->refs[i]);
+			jbas_resource_delete(rm, rm->refs[i]);
 		
 		rm->refs[i] = rm->refs[--rm->ref_count];
 	}
@@ -1094,18 +1157,23 @@ jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm)
 	return JBAS_OK;
 }
 
+/**
+	Removes a reference to the resource
+*/
 jbas_error jbas_resource_remove_ref(jbas_resource *res)
 {
 	if (res->ref_count) res->ref_count--;
 	return JBAS_OK;
 }
 
+/**
+	Increments reference counter
+*/
 jbas_error jbas_resource_add_ref(jbas_resource *res)
 {
 	res->ref_count++;
 	return JBAS_OK;
 }
-
 
 /**
 	Create a resource and register it in the resource_manager
@@ -1117,53 +1185,26 @@ jbas_error jbas_resource_create(jbas_resource_manager *rm, jbas_resource **res)
 	
 	r->ref_count = 1;
 
-	*res = r;
-	return JBAS_OK;
-}
+	// Register in the resource manager
+	int index = rm->ref_count++;
+	if (index >= rm->max_count) return JBAS_RESOURCE_MANAGER_OVERFLOW;
+	r->rm_index = index;
+	rm->refs[index] = r;
 
-jbas_error jbas_create_int(jbas_resource_manager *rm, jbas_resource **res, jbas_int value)
-{
-	jbas_resource *r;
-	jbas_error err = jbas_resource_create(rm, &r);
-	if (err) return err;
-
-	r->type = JBAS_RESOURCE_INT;
-	r->i = value; 
 
 	*res = r;
 	return JBAS_OK;
 }
 
-jbas_error jbas_assign_int(jbas_resource *res, jbas_int value)
+/**
+	Copies all resource data apart from the reference counter
+*/
+void jbas_resource_copy(jbas_resource *dest, jbas_resource *src)
 {
-	if (res->type == JBAS_RESOURCE_INT)
-		res->i = value;
-	else if (res->type == JBAS_RESOURCE_FLOAT)
-		res->f = value;
-	else
-		return JBAS_TYPE_MISMATCH;
-	return JBAS_OK;
+	int ref_count = dest->ref_count;
+	*dest = *src;
+	dest->ref_count = ref_count;
 }
-
-jbas_error jbas_create_float(jbas_resource_manager *rm, jbas_resource **res, jbas_float value)
-{
-	jbas_resource *r;
-	jbas_error err = jbas_resource_create(rm, &r);
-	if (err) return err;
-
-	r->type = JBAS_RESOURCE_FLOAT;
-	r->f = value; 
-
-	*res = r;
-	return JBAS_OK;
-}
-
-
-
-
-
-
-
 
 
 
@@ -1365,6 +1406,16 @@ void jbas_debug_dump_token(FILE *f, const jbas_token *token)
 	}
 }
 
+void jbas_debug_dump_resource(FILE *f, jbas_resource *res)
+{
+
+}
+
+void jbas_debug_dump_symbol(FILE *f, jbas_symbol *sym)
+{
+	fprintf(f, "`%s` ", sym->name->str);
+	jbas_debug_dump_resource(f, sym->resource);
+}
 
 jbas_error jbas_print(const jbas_token *token, int count)
 {
@@ -1817,7 +1868,7 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 	}
 
 	// Evaluate all operators - starting with high-level ones
-	for (int level = JBAS_MAX_OPERATOR_LEVEL; level; level--)
+	for (int level = JBAS_MAX_OPERATOR_LEVEL; level >= 0; level--)
 	{
 		jbas_token *t;
 		int paren;
