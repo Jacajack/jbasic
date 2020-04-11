@@ -53,6 +53,8 @@ typedef enum
 	JBAS_SYNTAX_UNMATCHED_PARENTHESIS,
 	JBAS_CANNOT_REMOVE_PARENTHESIS,
 	JBAS_OPERAND_MISSING,
+	JBAS_UNINITIALIZED_SYMBOL, // When evaluated symbol links to no resource
+	JBAS_CANNOT_EVAL_RESOURCE, // When you try to eval an e.g. an array ymbol
 } jbas_error;
 
 typedef enum
@@ -178,6 +180,7 @@ typedef struct
 
 typedef enum
 {
+	JBAS_NUM_BOOL,
 	JBAS_NUM_INT,
 	JBAS_NUM_FLOAT,
 } jbas_number_type;
@@ -329,7 +332,23 @@ jbas_error jbas_remove_parenthesis(jbas_env *env, jbas_token *t)
 	}
 	else if (t->type == JBAS_TOKEN_RPAREN)
 	{
-		// if (t)
+		if (!t->l) return JBAS_SYNTAX_UNMATCHED_PARENTHESIS;
+		jbas_token *l = t->l->l;
+		if (l->type != JBAS_TOKEN_LPAREN) return JBAS_CANNOT_REMOVE_PARENTHESIS;
+		
+		// Replace right parentheses with the value from the inside
+		jbas_token_copy(t, t->l);
+
+		jbas_token *h;
+		jbas_error err;
+
+		h = t->l;
+		err = jbas_token_list_return_to_pool(&h, &env->token_pool);
+		if (err) return err;
+
+		h = t->l;
+		err = jbas_token_list_return_to_pool(&h, &env->token_pool);
+		if (err) return err;
 	}
 
 	return JBAS_OK;
@@ -354,6 +373,79 @@ void jbas_number_cast(jbas_number_token *n, jbas_number_type t)
 		n->i = n->f;
 	else if (t == JBAS_NUM_FLOAT)
 		n->f = n->i;
+	else if (t == JBAS_NUM_BOOL)
+	{
+		if (n->type == JBAS_NUM_FLOAT)
+			n->i = n->f != 0;
+		else
+			n->i = n->i != 0;
+	}
+}
+
+/**
+	Returns true if provided token is a scalar
+*/
+bool jbas_is_scalar(jbas_token *t)
+{
+	if (t->type != JBAS_TOKEN_SYMBOL) return true;
+	else
+	{
+		jbas_resource *res = t->u.symbol_token.sym->resource;
+		if (!res) return true;
+
+		switch (res->type)
+		{
+			case JBAS_RESOURCE_INT:
+				return true;
+				break;
+
+			case JBAS_RESOURCE_FLOAT:
+				return true;
+				break;
+
+			case JBAS_RESOURCE_STRING:
+				return true;
+				break;
+
+			default:
+				return false;
+				break;
+		}
+	}
+}
+
+/*
+	Evaluates a scalar symbol
+*/
+jbas_error jbas_eval_scalar_symbol(jbas_env *env, jbas_token *t)
+{
+	if (t->type != JBAS_TOKEN_SYMBOL) return JBAS_OK;
+	if (!jbas_is_scalar(t)) return JBAS_OK;
+	jbas_symbol *sym = t->u.symbol_token.sym;
+	jbas_token res;
+
+	if (!sym->resource) return JBAS_UNINITIALIZED_SYMBOL;
+	switch (sym->resource->type)
+	{
+		case JBAS_RESOURCE_INT:
+			res.type = JBAS_TOKEN_NUMBER;
+			res.u.number_token.type = JBAS_NUM_INT;
+			res.u.number_token.i = sym->resource->i;
+			break;
+
+		case JBAS_RESOURCE_FLOAT:
+			res.type = JBAS_TOKEN_NUMBER;
+			res.u.number_token.type = JBAS_NUM_FLOAT;
+			res.u.number_token.f = sym->resource->f;
+			break;
+
+		default:
+			return JBAS_CANNOT_EVAL_RESOURCE;
+			break;
+	}
+
+	jbas_token_copy(t, &res);
+	return JBAS_OK;
 }
 
 jbas_error jbas_token_to_number(jbas_env *env, jbas_token *t)
@@ -361,30 +453,8 @@ jbas_error jbas_token_to_number(jbas_env *env, jbas_token *t)
 	if (t->type == JBAS_TOKEN_NUMBER) return JBAS_OK;
 	if (t->type == JBAS_TOKEN_SYMBOL)
 	{
-		jbas_token num = {.type = JBAS_TOKEN_NUMBER};
-		jbas_symbol *sym = t->u.symbol_token.sym;
-		jbas_resource *res = sym->resource;
-
-		if (res->type == JBAS_RESOURCE_INT)
-		{
-			num.u.number_token.type = JBAS_NUM_INT;
-			num.u.number_token.i = res->i;
-		}
-		else if (res->type == JBAS_RESOURCE_FLOAT)
-		{
-			num.u.number_token.type = JBAS_NUM_FLOAT;
-			num.u.number_token.f = res->f;
-		}
-		else
-			return JBAS_CAST_FAILED;
-
-		jbas_token_copy(t, &num);
-	}
-
-	// Remove parenthesis
-	if (t->type == JBAS_TOKEN_LPAREN || t->type == JBAS_TOKEN_RPAREN)
-	{
-		jbas_error err = jbas_remove_parenthesis(env, t);
+		jbas_error err;
+		err = jbas_eval_scalar_symbol(env, t);
 		if (err) return err;
 		return jbas_token_to_number(env, t);
 	}
@@ -429,16 +499,47 @@ jbas_error jbas_binary_math_op(jbas_env *env, jbas_token *a, jbas_token *b, jbas
 
 jbas_error jbas_op_and(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	// Convert both operands to numbers
+	jbas_error err = JBAS_OK;
+	err = jbas_token_to_number(env, a);
+	if (err) return err;
+	err = jbas_token_to_number(env, b);
+	if (err) return err;
+
+	// Convert both operands to bools
+	jbas_number_cast(&a->u.number_token, JBAS_NUM_BOOL);
+	jbas_number_cast(&b->u.number_token, JBAS_NUM_BOOL);
+
+	res->type = JBAS_TOKEN_NUMBER;
+	res->u.number_token.type = JBAS_NUM_BOOL;
+	res->u.number_token.i = a->u.number_token.i && b->u.number_token.i;
+
 	return JBAS_OK;
 }
 
 jbas_error jbas_op_or(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	// Convert both operands to numbers
+	jbas_error err = JBAS_OK;
+	err = jbas_token_to_number(env, a);
+	if (err) return err;
+	err = jbas_token_to_number(env, b);
+	if (err) return err;
+
+	// Convert both operands to bools
+	jbas_number_cast(&a->u.number_token, JBAS_NUM_BOOL);
+	jbas_number_cast(&b->u.number_token, JBAS_NUM_BOOL);
+
+	res->type = JBAS_TOKEN_NUMBER;
+	res->u.number_token.type = JBAS_NUM_BOOL;
+	res->u.number_token.i = a->u.number_token.i || b->u.number_token.i;
+
 	return JBAS_OK;
 }
 
 jbas_error jbas_op_eq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	// For numbers
 	return JBAS_OK;
 }
 
@@ -1084,6 +1185,8 @@ void jbas_debug_dump_token(FILE *f, const jbas_token *token)
 		case JBAS_TOKEN_NUMBER:
 			if (token->u.number_token.type == JBAS_NUM_INT)
 				fprintf(f, JBAS_COLOR_RED "%d" JBAS_COLOR_RESET, token->u.number_token.i);
+			else if (token->u.number_token.type == JBAS_NUM_BOOL)
+				fprintf(f, JBAS_COLOR_RED "%s" JBAS_COLOR_RESET, token->u.number_token.i ? "TRUE" : "FALSE");
 			else
 				fprintf(f, JBAS_COLOR_RED "%f" JBAS_COLOR_RESET, token->u.number_token.f);
 			break;
@@ -1610,12 +1713,22 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 		// Unary operators forward pass (posfix)
 		for (t = begin; t && t != end; t = t->r)
 		{
-			if (t->type == JBAS_TOKEN_OPERATOR
-				&& t->u.operator_token.op->type == JBAS_OP_UNARY_POSTFIX
-				&& t->u.operator_token.op->level == level)
+			if (t->type == JBAS_TOKEN_OPERATOR)
 			{
-				//jbas_error err = jbas_eval_unary_operator(env, t, JBAS_OP_UNARY_POSTFIX);
-				//if (err) return err;
+				const jbas_operator *op = t->u.operator_token.op;
+				bool has_left = jbas_has_left_operand(t);
+				bool has_right = jbas_has_right_operand(t);
+
+				// Accept unary operators and binary operators that have fallback operation set as prefix
+				// and have only right argument
+				if (has_left && !has_right 
+					&& ((op->type == JBAS_OP_UNARY_POSTFIX && level == op->level )
+					|| (op->fallback == JBAS_OP_UNARY_POSTFIX && level == op->fallback_level
+						&& (op->type == JBAS_OP_BINARY_LR || op->type == JBAS_OP_BINARY_RL))))
+				{
+					jbas_error err = jbas_eval_unary_operator(env, t, JBAS_OP_UNARY_POSTFIX);
+					if (err) return err;
+				}
 			}
 		}
 
