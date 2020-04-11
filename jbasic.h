@@ -599,21 +599,25 @@ jbas_error jbas_op_and(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 
 jbas_error jbas_op_or(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
-	// Convert both operands to numbers
-	jbas_error err = JBAS_OK;
-	err = jbas_token_to_number(env, a);
-	if (err) return err;
-	err = jbas_token_to_number(env, b);
-	if (err) return err;
-
-	// Convert both operands to bools
-	jbas_number_cast(&a->u.number_token, JBAS_NUM_BOOL);
-	jbas_number_cast(&b->u.number_token, JBAS_NUM_BOOL);
-
+	// Result type
 	res->type = JBAS_TOKEN_NUMBER;
 	res->u.number_token.type = JBAS_NUM_BOOL;
-	res->u.number_token.i = a->u.number_token.i || b->u.number_token.i;
 
+	// Convert both operands to numbers
+	jbas_error err = JBAS_OK;
+	err = jbas_token_to_number_type(env, a, JBAS_NUM_BOOL);
+	if (err) return err;
+
+	if (a->u.number_token.i)
+	{
+		res->u.number_token.i = 1;
+		return JBAS_OK;
+	}
+
+	err = jbas_token_to_number_type(env, b, JBAS_NUM_BOOL);
+	if (err) return err;
+
+	res->u.number_token.i = a->u.number_token.i || b->u.number_token.i;
 	return JBAS_OK;
 }
 
