@@ -9,7 +9,7 @@ typedef enum jbas_error
 	JBAS_EMPTY_TOKEN,
 	JBAS_TOKEN_POOL_EMPTY,
 	JBAS_TOKEN_POOL_OVERFLOW,
-	JBAS_ALLOC,
+	JBAS_ALLOC,                      // Memory allocation problem
 	JBAS_TEXT_MANAGER_OVERFLOW,
 	JBAS_TEXT_MANAGER_MISMATCH,
 	JBAS_RESOURCE_MANAGER_NOT_EMPTY,
@@ -35,6 +35,9 @@ typedef enum jbas_keyword
 	JBAS_KW_ENDIF
 } jbas_keyword;
 
+
+// Env forward declaration
+typedef struct jbas_env jbas_env;
 
 static const struct {const char *name; jbas_keyword id;} jbas_keywords[] = 
 {

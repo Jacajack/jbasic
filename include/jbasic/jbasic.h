@@ -13,28 +13,6 @@ extern "C" {
 #include <stdbool.h>
 #include <math.h>
 
-
-
-/*
-	=== JBASIC ===
-	
-	1. Token types
-		- Keyword
-		- Variable/sub name
-		- Number
-		- String
-	
-	2. Keywords
-		- PRINT
-*/
-
-
-
-/*
-	Token structures
-*/
-
-
 #include <jbasic/token.h>
 #include <jbasic/op.h>
 #include <jbasic/text.h>

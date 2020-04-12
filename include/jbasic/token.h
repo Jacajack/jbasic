@@ -65,8 +65,6 @@ typedef struct
 typedef struct jbas_token
 {
 	jbas_token_type type;
-	const char *begin, *end;
-
 	union
 	{
 		jbas_keyword_token keyword_token;
@@ -74,7 +72,7 @@ typedef struct jbas_token
 		jbas_number_token number_token;
 		jbas_string_token string_token;
 		jbas_symbol_token symbol_token;
-	} u;
+	};
 
 	// For bidirectional linking
 	struct jbas_token *l, *r;

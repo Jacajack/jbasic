@@ -17,7 +17,6 @@ const char *jbas_debug_keyword_str(jbas_keyword id)
 	return NULL;
 }
 
-
 /**
 	Dumps token to stderr
 */
@@ -34,24 +33,24 @@ void jbas_debug_dump_token(FILE *f, const jbas_token *token)
 	switch (token->type)
 	{
 		case JBAS_TOKEN_KEYWORD:
-			fprintf(f, JBAS_COLOR_BLUE "%s" JBAS_COLOR_RESET, jbas_debug_keyword_str(token->u.keyword_token.id));
+			fprintf(f, JBAS_COLOR_BLUE "%s" JBAS_COLOR_RESET, jbas_debug_keyword_str(token->keyword_token.id));
 			break;
 
 		case JBAS_TOKEN_STRING:
-			fprintf(f, JBAS_COLOR_GREEN "'%s'" JBAS_COLOR_RESET, token->u.string_token.txt->str);
+			fprintf(f, JBAS_COLOR_GREEN "'%s'" JBAS_COLOR_RESET, token->string_token.txt->str);
 			break;
 
 		case JBAS_TOKEN_NUMBER:
-			if (token->u.number_token.type == JBAS_NUM_INT)
-				fprintf(f, JBAS_COLOR_RED "%d" JBAS_COLOR_RESET, token->u.number_token.i);
-			else if (token->u.number_token.type == JBAS_NUM_BOOL)
-				fprintf(f, JBAS_COLOR_RED "%s" JBAS_COLOR_RESET, token->u.number_token.i ? "TRUE" : "FALSE");
+			if (token->number_token.type == JBAS_NUM_INT)
+				fprintf(f, JBAS_COLOR_RED "%d" JBAS_COLOR_RESET, token->number_token.i);
+			else if (token->number_token.type == JBAS_NUM_BOOL)
+				fprintf(f, JBAS_COLOR_RED "%s" JBAS_COLOR_RESET, token->number_token.i ? "TRUE" : "FALSE");
 			else
-				fprintf(f, JBAS_COLOR_RED "%f" JBAS_COLOR_RESET, token->u.number_token.f);
+				fprintf(f, JBAS_COLOR_RED "%f" JBAS_COLOR_RESET, token->number_token.f);
 			break;
 
 		case JBAS_TOKEN_OPERATOR:
-			fprintf(f, JBAS_COLOR_YELLOW "%s" JBAS_COLOR_RESET, token->u.operator_token.op->str);
+			fprintf(f, JBAS_COLOR_YELLOW "%s" JBAS_COLOR_RESET, token->operator_token.op->str);
 			break;
 
 		case JBAS_TOKEN_DELIMITER:
@@ -64,7 +63,7 @@ void jbas_debug_dump_token(FILE *f, const jbas_token *token)
 			break;
 
 		case JBAS_TOKEN_SYMBOL:
-			fprintf(f, JBAS_COLOR_RESET "%s" JBAS_COLOR_RESET, token->u.symbol_token.sym->name->str);
+			fprintf(f, JBAS_COLOR_RESET "%s" JBAS_COLOR_RESET, token->symbol_token.sym->name->str);
 			break;
 
 		default:
@@ -75,10 +74,38 @@ void jbas_debug_dump_token(FILE *f, const jbas_token *token)
 
 void jbas_debug_dump_resource(FILE *f, jbas_resource *res)
 {
+	if (!res)
+	{
+		fprintf(f, "NULL");
+		return;
+	}
+
+	if (res->type == JBAS_RESOURCE_NUMBER)
+	{
+		if (res->number.type == JBAS_NUM_INT || res->number.type == JBAS_NUM_BOOL)
+			fprintf(f, "%d", res->number.i);
+		
+		return;
+	}
+
+	fprintf(f, "???");
 }
 
 void jbas_debug_dump_symbol(FILE *f, jbas_symbol *sym)
 {
-	fprintf(f, "`%s` ", sym->name->str);
+	fprintf(f, "`%s` = ", sym->name->str);
 	jbas_debug_dump_resource(f, sym->resource);
+}
+
+void jbas_debug_dump_symbol_table(FILE *f, jbas_env *env)
+{
+	jbas_symbol_manager *sm = &env->symbol_manager;
+	fprintf(f, JBAS_COLOR_MAGENTA "== SYMBOL TABLE DUMP BEGIN\n" JBAS_COLOR_RESET);
+	for (int i = 0; i < sm->max_count; i++)
+		if (sm->is_used[i])
+		{
+			jbas_debug_dump_symbol(f, &sm->symbol_storage[i]);
+			fprintf(f, "\n");
+		}
+	fprintf(f, JBAS_COLOR_MAGENTA "== SYMBOL TABLE DUMP END\n" JBAS_COLOR_RESET);
 }

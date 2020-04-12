@@ -147,7 +147,7 @@ bool jbas_is_scalar(jbas_token *t)
 	if (t->type != JBAS_TOKEN_SYMBOL) return true;
 	else
 	{
-		jbas_resource *res = t->u.symbol_token.sym->resource;
+		jbas_resource *res = t->symbol_token.sym->resource;
 		if (!res) return true;
 
 		switch (res->type)
@@ -173,7 +173,7 @@ jbas_error jbas_eval_scalar_symbol(jbas_env *env, jbas_token *t)
 {
 	if (t->type != JBAS_TOKEN_SYMBOL) return JBAS_OK;
 	if (!jbas_is_scalar(t)) return JBAS_OK;
-	jbas_symbol *sym = t->u.symbol_token.sym;
+	jbas_symbol *sym = t->symbol_token.sym;
 	jbas_token res;
 
 	if (!sym->resource) return JBAS_UNINITIALIZED_SYMBOL;
@@ -181,7 +181,7 @@ jbas_error jbas_eval_scalar_symbol(jbas_env *env, jbas_token *t)
 	{
 		case JBAS_RESOURCE_NUMBER:
 			res.type = JBAS_TOKEN_NUMBER;
-			res.u.number_token = sym->resource->number;
+			res.number_token = sym->resource->number;
 			break;
 
 		default:
@@ -218,7 +218,7 @@ jbas_error jbas_token_to_number_type(jbas_env *env, jbas_token *t, jbas_number_t
 {
 	jbas_error err = jbas_token_to_number(env, t);
 	if (err) return err;
-	jbas_number_cast(&t->u.number_token, type);
+	jbas_number_cast(&t->number_token, type);
 	return JBAS_OK;
 }
 
@@ -377,7 +377,7 @@ jbas_error jbas_print(const jbas_token *token, int count)
 			// Print a string
 			case JBAS_TOKEN_STRING:
 			{
-				const jbas_string_token *t = &token->u.string_token;
+				const jbas_string_token *t = &token->string_token;
 				printf("%s", t->txt->str);
 			}
 			break;
@@ -413,7 +413,6 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		return JBAS_EMPTY_TOKEN;
 	}
 
-	token->begin = s;
 
 	// If it's ';', it's a delimiter
 	if (*s == ';' || *s == '\n')
@@ -446,11 +445,11 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		while (*num_end && isdigit(*num_end)) num_end++;
 
 		// TODO use custom interpreter
-		token->u.number_token.type = is_int ? JBAS_NUM_INT : JBAS_NUM_FLOAT;
+		token->number_token.type = is_int ? JBAS_NUM_INT : JBAS_NUM_FLOAT;
 		if (is_int)
-			sscanf(s, "%d", &token->u.number_token.i);
+			sscanf(s, "%d", &token->number_token.i);
 		else
-			sscanf(s, "%f", &token->u.number_token.f);
+			sscanf(s, "%f", &token->number_token.f);
 
 		*next = num_end;
 		token->type = JBAS_TOKEN_NUMBER;
@@ -470,14 +469,14 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 			return JBAS_SYNTAX_UNMATCHED_QUOTE;
 		}
 
-		token->end = *next = str_end + 1;
+		*next = str_end + 1;
 		token->type = JBAS_TOKEN_STRING;
 
 		jbas_error err = jbas_text_create(
 			&env->text_manager,
 			s + 1,
 			str_end,
-			&token->u.string_token.txt);
+			&token->string_token.txt);
 
 		return err;
 	}
@@ -485,7 +484,7 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 	// Left parenthesis
 	if (*s == '(')
 	{
-		token->end = *next = s + 1;
+		*next = s + 1;
 		token->type = JBAS_TOKEN_LPAREN;
 		return JBAS_OK;
 	}
@@ -493,7 +492,7 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 	// Right parenthesis
 	if (*s == ')')
 	{
-		token->end = *next = s + 1;
+		*next = s + 1;
 		token->type = JBAS_TOKEN_RPAREN;
 		return JBAS_OK;
 	}
@@ -508,7 +507,7 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		if (!jbas_namecmp(s, operator_end, jbas_operators[i].str, NULL))
 		{
 			token->type = JBAS_TOKEN_OPERATOR;
-			token->u.operator_token.op = &jbas_operators[i];
+			token->operator_token.op = &jbas_operators[i];
 			return JBAS_OK;
 		}
 	}
@@ -525,7 +524,7 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		{
 			// Found matching keyword
 			token->type = JBAS_TOKEN_KEYWORD;
-			token->u.keyword_token.id = jbas_keywords[i].id;
+			token->keyword_token.id = jbas_keywords[i].id;
 			return JBAS_OK;
 		}
 	}
@@ -538,7 +537,7 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		
 		err = jbas_symbol_create(env, &sym, s, name_end);
 		if (err == JBAS_OK || err == JBAS_SYMBOL_COLLISION)
-			token->u.symbol_token.sym = sym;
+			token->symbol_token.sym = sym;
 		else
 			return err;
 		
@@ -555,7 +554,7 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 
 jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t, jbas_operator_type unary_type)
 {
-	if (!unary_type) unary_type = t->u.operator_token.op->type;
+	if (!unary_type) unary_type = t->operator_token.op->type;
 	if (unary_type == JBAS_OP_UNARY_PREFIX)
 	{
 		if (!jbas_has_left_operand(t) && jbas_has_right_operand(t))
@@ -564,7 +563,7 @@ jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t, jbas_operator_
 			if (t->r->type == JBAS_TOKEN_LPAREN) jbas_remove_parenthesis(env, t->r);
 
 			// Call the operator handler and have it replaced with operation result
-			t->u.operator_token.op->handler(env, NULL, t->r, t);
+			t->operator_token.op->handler(env, NULL, t->r, t);
 
 			// Remove operand
 			jbas_error err;
@@ -582,7 +581,7 @@ jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t, jbas_operator_
 			if (t->l->type == JBAS_TOKEN_RPAREN) jbas_remove_parenthesis(env, t->l);
 
 			// Call the operator handler and have it replaced with operation result
-			t->u.operator_token.op->handler(env, t->l, NULL, t);
+			t->operator_token.op->handler(env, t->l, NULL, t);
 
 			// Remove operand
 			jbas_error err;
@@ -605,7 +604,7 @@ jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
 		if (t->r->type == JBAS_TOKEN_LPAREN) jbas_remove_parenthesis(env, t->r);
 
 		// Call the operator handler and have it replaced with operation result
-		t->u.operator_token.op->handler(env, t->l, t->r, t);
+		t->operator_token.op->handler(env, t->l, t->r, t);
 
 		// Remove operands
 		jbas_error err;
@@ -651,7 +650,7 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 
 			if (!paren && t->type == JBAS_TOKEN_OPERATOR)
 			{
-				const jbas_operator *op = t->u.operator_token.op;
+				const jbas_operator *op = t->operator_token.op;
 				bool has_left = jbas_has_left_operand(t);
 				bool has_right = jbas_has_right_operand(t);
 
@@ -677,7 +676,7 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 
 			if (!paren && t->type == JBAS_TOKEN_OPERATOR)
 			{
-				const jbas_operator *op = t->u.operator_token.op;
+				const jbas_operator *op = t->operator_token.op;
 				bool has_left = jbas_has_left_operand(t);
 				bool has_right = jbas_has_right_operand(t);
 
@@ -702,8 +701,8 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 			paren -= t->type == JBAS_TOKEN_RPAREN;
 
 			if (!paren && t->type == JBAS_TOKEN_OPERATOR
-				&& t->u.operator_token.op->type == JBAS_OP_BINARY_LR
-				&& t->u.operator_token.op->level == level)
+				&& t->operator_token.op->type == JBAS_OP_BINARY_LR
+				&& t->operator_token.op->level == level)
 			{
 				jbas_error err = jbas_eval_binary_operator(env, t);
 				if (err) return err;
@@ -718,8 +717,8 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 			paren -= t->type == JBAS_TOKEN_LPAREN;
 
 			if (!paren && t->type == JBAS_TOKEN_OPERATOR
-				&& t->u.operator_token.op->type == JBAS_OP_BINARY_RL
-				&& t->u.operator_token.op->level == level)
+				&& t->operator_token.op->type == JBAS_OP_BINARY_RL
+				&& t->operator_token.op->level == level)
 			{
 				jbas_error err = jbas_eval_binary_operator(env, t);
 				if (err) return err;
