@@ -30,7 +30,7 @@ extern const jbas_operator jbas_operators[];
 int jbas_is_operator_char(char c);
 
 
-#define JBAS_MAX_OPERATOR_LEVEL 5
-#define JBAS_OPERATOR_COUNT 18
+#define JBAS_MAX_OPERATOR_LEVEL 6
+#define JBAS_OPERATOR_COUNT 19
 
 #endif

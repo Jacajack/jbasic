@@ -13,12 +13,13 @@ typedef enum
  	JBAS_TOKEN_RPAREN,
  	JBAS_TOKEN_NUMBER,
 	JBAS_TOKEN_STRING,
-	JBAS_TOKEN_COMMA,
+	JBAS_TOKEN_TUPLE,
 	JBAS_TOKEN_DELIMITER,
 } jbas_token_type;
 
 typedef struct jbas_symbol jbas_symbol;
 typedef struct jbas_operator jbas_operator;
+typedef struct jbas_token jbas_token;
 
 typedef struct
 {
@@ -40,6 +41,11 @@ typedef struct
 {
 	jbas_symbol *sym;
 } jbas_symbol_token;
+
+typedef struct jbas_tuple_token
+{
+	jbas_token *tokens;
+} jbas_tuple_token;
 
 typedef enum
 {
@@ -72,6 +78,7 @@ typedef struct jbas_token
 		jbas_number_token number_token;
 		jbas_string_token string_token;
 		jbas_symbol_token symbol_token;
+		jbas_tuple_token tuple_token;
 	};
 
 	// For bidirectional linking
@@ -119,5 +126,6 @@ jbas_error jbas_token_list_push_back_from_pool(
 	jbas_token *token,
 	jbas_token **inserted);
 jbas_error jbas_token_list_return_to_pool(jbas_token **list_handle, jbas_token_pool *pool);
+jbas_error jbas_token_list_destroy(jbas_token *list, jbas_token_pool *pool);
 
 #endif

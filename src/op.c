@@ -8,7 +8,11 @@
 
 jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
-	if (a->type != JBAS_TOKEN_SYMBOL) return JBAS_BAD_ASSIGN;
+	if (a->type != JBAS_TOKEN_SYMBOL)
+	{
+		JBAS_ERROR_REASON(env, "cannot assign value to non-symbol token");
+		return JBAS_BAD_ASSIGN;
+	}
 	jbas_symbol *asym = a->symbol_token.sym;
 	jbas_resource *dest;
 
@@ -40,6 +44,65 @@ jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jbas_toke
 	}
 
 	jbas_token_copy(res, b);
+	return JBAS_OK;
+}
+
+jbas_error jbas_op_comma(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+{
+	// No tuple on either side
+	if (a->type != JBAS_TOKEN_TUPLE && b->type != JBAS_TOKEN_TUPLE)
+	{
+		// Let's make a tuple
+		res->type = JBAS_TOKEN_TUPLE;
+		res->tuple_token.tokens = NULL;
+		jbas_error err;
+		err = jbas_token_list_push_back_from_pool(res->tuple_token.tokens, &env->token_pool, a, &res->tuple_token.tokens);
+		if (err) return err;
+		err = jbas_token_list_push_back_from_pool(res->tuple_token.tokens, &env->token_pool, b, &res->tuple_token.tokens);
+		if (err) return err;
+		return JBAS_OK;
+	}
+
+	// Tuple on the left side
+	if (a->type == JBAS_TOKEN_TUPLE && b->type != JBAS_TOKEN_TUPLE)
+	{
+		// Copy the tuple on the left side
+		jbas_token_copy(res, a);
+
+		jbas_error err;
+		err = jbas_token_list_push_back_from_pool(res->tuple_token.tokens, &env->token_pool, b, &res->tuple_token.tokens);
+		if (err) return err;
+		return JBAS_OK;
+	}
+
+	// Tuple on the right side
+	if (a->type != JBAS_TOKEN_TUPLE && b->type == JBAS_TOKEN_TUPLE)
+	{
+		// Copy the tuple on the right side
+		jbas_token_copy(res, b);
+
+		jbas_error err;
+		err = jbas_token_list_push_front_from_pool(res->tuple_token.tokens, &env->token_pool, a, NULL);
+		if (err) return err;
+		return JBAS_OK;
+	}
+
+	// Tuples on both sides
+	if (a->type == JBAS_TOKEN_TUPLE && b->type == JBAS_TOKEN_TUPLE)
+	{	
+		// Transfer tuple token ownership - merge lists
+		jbas_token *rb = jbas_token_list_begin(b->tuple_token.tokens);
+		jbas_token *le = jbas_token_list_end(a->tuple_token.tokens);
+		b->tuple_token.tokens = NULL;		
+		le->r = rb;
+		rb->l = le;
+
+		// Copy the tuple on the left
+		jbas_token_copy(res, a);
+
+		return JBAS_OK;
+	}
+
 	return JBAS_OK;
 }
 
@@ -261,37 +324,40 @@ jbas_error jbas_op_not(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 const jbas_operator jbas_operators[JBAS_OPERATOR_COUNT] = 
 {
 	// Assignment operators
-	{.str = "=",   .level = 0, .type = JBAS_OP_BINARY_RL, .handler = jbas_op_assign},
+	{.str = "=",   .level = 0, .type = JBAS_OP_BINARY_RL, .fallback = 0, .handler = jbas_op_assign},
 	
+	// Commas for making tuples
+	{.str = ",",   .level = 1, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_comma},
+
 	// Binary logical operators
-	{.str = "&&",  .level = 1, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_and},
-	{.str = "||",  .level = 1, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_or},
-	{.str = "AND", .level = 1, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_and},
-	{.str = "OR",  .level = 1, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_or},
+	{.str = "&&",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_and},
+	{.str = "||",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_or},
+	{.str = "AND", .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_and},
+	{.str = "OR",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_or},
 
 	// Comparison operators
-	{.str = "==",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_eq},
-	{.str = "!=",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_neq},
-	{.str = "<",   .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_less},
-	{.str = ">",   .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_greater},
-	{.str = "<=",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_leq},
-	{.str = ">=",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_geq},
+	{.str = "==",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_eq},
+	{.str = "!=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_neq},
+	{.str = "<",   .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_less},
+	{.str = ">",   .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_greater},
+	{.str = "<=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_leq},
+	{.str = ">=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_geq},
 
 	// Mathematical operators
-	{.str = "+",   .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_add},
-	{.str = "-",   .level = 3, .type = JBAS_OP_BINARY_LR, .handler = jbas_op_sub, .fallback = JBAS_OP_UNARY_PREFIX, .fallback_level = 5},
-	{.str = "*",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_mul},
-	{.str = "/",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_div},
-	{.str = "%",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_mod},
+	{.str = "+",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_add},
+	{.str = "-",   .level = 4, .type = JBAS_OP_BINARY_LR, .handler = jbas_op_sub, .fallback = JBAS_OP_UNARY_PREFIX, .fallback_level = 5},
+	{.str = "*",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_mul},
+	{.str = "/",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_div},
+	{.str = "%",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_mod},
 
 	// Unary prefix operators
-	{.str = "!",   .level = 5, .type = JBAS_OP_UNARY_PREFIX, .handler = jbas_op_not},
-	{.str = "NOT", .level = 5, .type = JBAS_OP_UNARY_PREFIX, .handler = jbas_op_not},
+	{.str = "!",   .level = 6, .type = JBAS_OP_UNARY_PREFIX, .handler = jbas_op_not},
+	{.str = "NOT", .level = 6, .type = JBAS_OP_UNARY_PREFIX, .handler = jbas_op_not},
 
 };
 
 int jbas_is_operator_char(char c)
 {
-	return isalpha(c) || strchr("=<>!&|+-*/%", c);
+	return isalpha(c) || strchr("=<>!,&|+-*/%", c);
 }
 

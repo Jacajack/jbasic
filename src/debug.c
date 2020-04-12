@@ -20,7 +20,7 @@ const char *jbas_debug_keyword_str(jbas_keyword id)
 /**
 	Dumps token to stderr
 */
-void jbas_debug_dump_token(FILE *f, const jbas_token *token)
+void jbas_debug_dump_token(FILE *f, jbas_token *token)
 {	
 	fprintf(f, " ");
 
@@ -66,10 +66,22 @@ void jbas_debug_dump_token(FILE *f, const jbas_token *token)
 			fprintf(f, JBAS_COLOR_RESET "%s" JBAS_COLOR_RESET, token->symbol_token.sym->name->str);
 			break;
 
+		case JBAS_TOKEN_TUPLE:
+			fprintf(f, JBAS_COLOR_MAGENTA "{" JBAS_COLOR_RESET);
+			jbas_debug_dump_token_list(f, token->tuple_token.tokens);
+			fprintf(f, JBAS_COLOR_MAGENTA " }" JBAS_COLOR_RESET);
+			break;
+
 		default:
 			fprintf(f, "(%d?)", token->type );
 			break;
 	}
+}
+
+void jbas_debug_dump_token_list(FILE *f, jbas_token *t)
+{
+	for (t = jbas_token_list_begin(t); t; t = t->r)
+		jbas_debug_dump_token(f, t);
 }
 
 void jbas_debug_dump_resource(FILE *f, jbas_resource *res)

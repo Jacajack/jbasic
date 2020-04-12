@@ -55,5 +55,10 @@ typedef int jbas_int;
 typedef float jbas_float;
 
 
+#ifdef JBAS_ERROR_REASONS
+	#define JBAS_ERROR_REASON(env, s) ((env)->error_reason = (__FILE__ ": " s)); 
+#else
+	#define JBAS_ERROR_REASON(env, s) (void);
+#endif
 
 #endif

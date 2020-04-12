@@ -13,6 +13,7 @@ extern "C" {
 #include <stdbool.h>
 #include <math.h>
 
+#include <jbasic/defs.h>
 #include <jbasic/token.h>
 #include <jbasic/op.h>
 #include <jbasic/text.h>
@@ -30,6 +31,8 @@ typedef struct jbas_env
 	jbas_resource_manager resource_manager;
 	jbas_symbol_manager symbol_manager;
 	jbas_token *tokens; //!< Tokenized program
+
+	const char *error_reason; //!< Reason for returning an error
 } jbas_env;
 
 
@@ -52,7 +55,7 @@ jbas_error jbas_print(const jbas_token *token, int count);
 jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **next, jbas_token *token);
 jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t, jbas_operator_type unary_type);
 jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t);
-jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end);
+jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end, jbas_token **result);
 jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *const token);
 jbas_error jbas_run_tokens(jbas_env *env);
 jbas_error jbas_tokenize_string(jbas_env *env, const char *str);

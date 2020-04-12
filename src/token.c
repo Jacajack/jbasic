@@ -1,12 +1,22 @@
 #include <jbasic/token.h>
 #include <stdlib.h>
 
+/**	
+	Copies token data.
+	For tuples it acts like moving
+*/
 void jbas_token_copy(jbas_token *dest, jbas_token *src)
 {
 	jbas_token *l = dest->l, *r = dest->r;
 	*dest = *src;
 	dest->l = l;
 	dest->r = r;
+
+	// Invalidate source tuple
+	if (src->type == JBAS_TOKEN_TUPLE)
+	{
+		src->tuple_token.tokens = NULL;
+	}
 }
 
 // -------------------------------------- TOKEN POOL
@@ -137,7 +147,7 @@ jbas_error jbas_token_list_insert_before_from_pool(
 		t->r = before;
 		before->l = t;
 
-		*inserted = t;
+		if (inserted) *inserted = t;
 		return JBAS_OK;
 	}
 	else
@@ -173,6 +183,13 @@ jbas_error jbas_token_list_push_back_from_pool(
 */
 jbas_error jbas_token_list_return_to_pool(jbas_token **list_handle, jbas_token_pool *pool)
 {
+	// Tuple tokens contain sub-lits
+	if ((*list_handle)->type == JBAS_TOKEN_TUPLE && (*list_handle)->tuple_token.tokens)
+	{
+		jbas_error err = jbas_token_list_destroy((*list_handle)->tuple_token.tokens, pool);
+		if (err) return err;
+	}
+
 	jbas_token *t = *list_handle;
 	if (t->l) t->l->r = t->r;
 	if (t->r) t->r->l = t->l;
@@ -183,4 +200,19 @@ jbas_error jbas_token_list_return_to_pool(jbas_token **list_handle, jbas_token_p
 	else *list_handle = NULL;
 
 	return jbas_token_pool_return(pool, t);
+}
+
+/**
+	Returns entire token list to pool
+*/
+jbas_error jbas_token_list_destroy(jbas_token *list, jbas_token_pool *pool)
+{
+	jbas_token *t = jbas_token_list_begin(list);
+	while (t)
+	{
+		jbas_error err = jbas_token_list_return_to_pool(&t, pool);
+		if (err) return err;
+	}
+	
+	return JBAS_OK;
 }

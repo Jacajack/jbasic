@@ -12,9 +12,10 @@ int main(void)
 	// "A = 7 + 5 + 10\n"
 	// "A = 3 *  7 + 2 * -( 3.0 + (1 / - 1) )\n"
 	// "M = 3 * 7 = 1 - 2\n"
-	"TEST = 1 OR ( 7 * 1 + 1 )\n"
-	"DUPA = 77\n"
-	"C = 44\n"
+	//"TEST = 1 OR ( 7 * 1 + 1 )\n"
+	// "DUPA = 77\n"
+	"14 + 7 \n"
+	"( 1 + 4 , 7, 3 ) , 33 * 6 , ( 2 , ( 4 , 5 / 1.1 ) ) \n"
 	//"C = 1 && 0.14\n"
 	//"Y = 2 + 3 * ( 7.0 / 5 + 4 ) + 3 * ( 21.7 * 55.23 - 3.127 / 12 )\n"
 	;
@@ -27,7 +28,9 @@ int main(void)
 	"PRINT `fus ro dah!`\n";
 	*/
 
-	jbas_tokenize_string(&env, lines);
+	jbas_error err;
+	err = jbas_tokenize_string(&env, lines);
+	fprintf(stderr, "tokenize error %d: %s\n", err, env.error_reason);
 
 	// printf("---------\n");
 
@@ -45,9 +48,11 @@ int main(void)
 
 
 	// Run
-	jbas_run_tokens(&env);
+	err = jbas_run_tokens(&env);
 
 	printf("\n\n\n");
+	fprintf(stderr, "run error %d: %s\n", err, env.error_reason);
+
 
 
 	jbas_debug_dump_symbol_table(stderr, &env);
