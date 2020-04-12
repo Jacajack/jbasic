@@ -1,6 +1,7 @@
 // #define JBASIC_DEBUG
 #define JBASIC_IMPLEMENTATION
-#include "jbasic.h"
+#include <jbasic/jbasic.h>
+#include <jbasic/debug.h>
 
 int main(void)
 {
