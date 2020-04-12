@@ -64,6 +64,10 @@ typedef struct
 	};
 } jbas_number_token;
 
+typedef struct jbas_paren_token
+{
+	jbas_token *match;
+} jbas_paren_token;
 
 /**
 	Polymorphic token
@@ -79,6 +83,7 @@ typedef struct jbas_token
 		jbas_string_token string_token;
 		jbas_symbol_token symbol_token;
 		jbas_tuple_token tuple_token;
+		jbas_paren_token paren_token;
 	};
 
 	// For bidirectional linking

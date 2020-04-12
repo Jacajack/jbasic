@@ -37,8 +37,8 @@ typedef struct jbas_env
 
 
 jbas_error jbas_remove_parenthesis(jbas_env *env, jbas_token *t);
-jbas_error jbas_find_matching_parenthese(jbas_token *t, jbas_token **match);
-jbas_error jbas_eval_parenthesis(jbas_env *env, jbas_token *t);
+jbas_error jbas_get_matching_paren(jbas_token *t, jbas_token **match);
+jbas_error jbas_eval_paren(jbas_env *env, jbas_token *t);
 jbas_number_type jbas_number_type_promotion(jbas_number_type a, jbas_number_type b);
 void jbas_number_cast(jbas_number_token *n, jbas_number_type t);
 bool jbas_is_scalar(jbas_token *t);
@@ -62,7 +62,7 @@ jbas_error jbas_tokenize_string(jbas_env *env, const char *str);
 jbas_error jbas_env_init(jbas_env *env, int token_count, int text_count, int symbol_count, int resource_count);
 void jbas_env_destroy(jbas_env *env);
 
-
+#define JBAS_MAX_EVAL_OPERATORS 64
 
 #ifdef __cplusplus
 }

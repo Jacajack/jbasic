@@ -345,7 +345,7 @@ const jbas_operator jbas_operators[JBAS_OPERATOR_COUNT] =
 
 	// Mathematical operators
 	{.str = "+",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_add},
-	{.str = "-",   .level = 4, .type = JBAS_OP_BINARY_LR, .handler = jbas_op_sub, .fallback = JBAS_OP_UNARY_PREFIX, .fallback_level = 5},
+	{.str = "-",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_sub},
 	{.str = "*",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_mul},
 	{.str = "/",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_div},
 	{.str = "%",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_mod},

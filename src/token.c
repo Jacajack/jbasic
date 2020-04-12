@@ -3,7 +3,8 @@
 
 /**	
 	Copies token data.
-	For tuples it acts like moving
+	For tuples it acts like moving.
+	Updates parentheses refs too.
 */
 void jbas_token_copy(jbas_token *dest, jbas_token *src)
 {
@@ -16,6 +17,14 @@ void jbas_token_copy(jbas_token *dest, jbas_token *src)
 	if (src->type == JBAS_TOKEN_TUPLE)
 	{
 		src->tuple_token.tokens = NULL;
+	}
+
+	// Update parentheses refs
+	if (src->type == JBAS_TOKEN_LPAREN || src->type == JBAS_TOKEN_RPAREN)
+	{
+		jbas_token *match = dest->paren_token.match;
+		if (match) match->paren_token.match = dest;
+		src->paren_token.match = NULL;
 	}
 }
 
