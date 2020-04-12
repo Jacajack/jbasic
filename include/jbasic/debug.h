@@ -6,8 +6,6 @@
 #include <jbasic/resource.h>
 #include <jbasic/token.h>
 
-typedef struct jbas_env jbas_env;
-
 const char *jbas_debug_keyword_str(jbas_keyword id);
 void jbas_debug_dump_token(FILE *f, const jbas_token *token);
 void jbas_debug_dump_resource(FILE *f, jbas_resource *res);

@@ -18,8 +18,8 @@ jbas_error jbas_resource_manager_init(jbas_resource_manager *rm, int max_count)
 */
 void jbas_resource_manager_destroy(jbas_resource_manager *rm)
 {
-	for (int i = 0; i < rm->ref_count; i++)
-		jbas_resource_delete(rm, rm->refs[i]);
+	while (rm->ref_count)
+		jbas_resource_delete(rm, rm->refs[0]);
 	free(rm->refs);
 }
 
@@ -32,8 +32,6 @@ jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm)
 	{
 		if (rm->refs[i]->ref_count == 0)
 			jbas_resource_delete(rm, rm->refs[i]);
-		
-		rm->refs[i] = rm->refs[--rm->ref_count];
 	}
 
 	return JBAS_OK;
@@ -91,7 +89,9 @@ void jbas_resource_delete(jbas_resource_manager *rm, jbas_resource *res)
 	}
 
 	// Update resource manager refs
-	jbas_resource *m = rm->refs[--rm->ref_count];
+	int index = --rm->ref_count;
+	if (index < 0) return;
+	jbas_resource *m = rm->refs[index];
 	rm->refs[res->rm_index] = m;
 	m->rm_index = res->rm_index;
 

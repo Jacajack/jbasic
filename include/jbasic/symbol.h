@@ -5,8 +5,6 @@
 #include <jbasic/text.h>
 #include <jbasic/resource.h>
 
-typedef struct jbas_env jbas_env;
-
 /**
 	Symbols are links between names in the code and resoruces
 */

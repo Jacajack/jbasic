@@ -14,8 +14,6 @@ typedef enum jbas_operator_type
 	JBAS_OP_BINARY_RL,
 } jbas_operator_type;
 
-typedef struct jbas_env jbas_env;
-
 typedef struct jbas_operator
 {
 	const char *str;
