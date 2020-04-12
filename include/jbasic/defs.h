@@ -24,6 +24,7 @@ typedef enum jbas_error
 	JBAS_UNINITIALIZED_SYMBOL, // When evaluated symbol links to no resource
 	JBAS_CANNOT_EVAL_RESOURCE, // When you try to eval an e.g. an array symbol
 	JBAS_BAD_ASSIGN,
+	JBAS_BAD_CALL,
 } jbas_error;
 
 

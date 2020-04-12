@@ -240,7 +240,6 @@ bool jbas_is_valid_operand(jbas_token *t)
 */
 bool jbas_has_left_operand(jbas_token *t)
 {
-	if (t->type != JBAS_TOKEN_OPERATOR) return false;
 	return jbas_is_valid_operand(t->l) && t->l->type != JBAS_TOKEN_LPAREN;
 }
 
@@ -249,7 +248,6 @@ bool jbas_has_left_operand(jbas_token *t)
 */
 bool jbas_has_right_operand(jbas_token *t)
 {
-	if (t->type != JBAS_TOKEN_OPERATOR) return false;
 	return jbas_is_valid_operand(t->r) && t->r->type != JBAS_TOKEN_RPAREN;
 }
 
@@ -620,25 +618,20 @@ jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
 	return JBAS_OK;
 }
 
+jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *args)
+{
+	JBAS_ERROR_REASON(env, "object is not callable!");
+	return JBAS_BAD_CALL;
+
+	// Remove args after call
+	jbas_error err;
+	err = jbas_remove_right_operand(env, fun);
+	if (err) return err;
+	return JBAS_OK;
+}
 
 jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end, jbas_token **result)
 {
-	// Leave commas untouched
-	/*
-	jbas_token *com = begin;
-	while (com != end && com->type != JBAS_TOKEN_COMMA)
-		com = com->r;
-
-	// Evaluate two separate parts if commas are present
-	if (com != end)
-	{
-		jbas_error err;
-		err = jbas_eval(env, begin, com);
-		if (err) return err;
-		return jbas_eval(env, com->r, end);
-	}
-	*/
-
 	jbas_token *last_op = begin;
 
 	// Evaluate all operators - starting with high-level ones
@@ -654,7 +647,18 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 			paren += t->type == JBAS_TOKEN_LPAREN;
 			paren -= t->type == JBAS_TOKEN_RPAREN;
 
-			if (!paren && t->type == JBAS_TOKEN_OPERATOR)
+			// A special case - call operator
+			// Each pair of parenthesis appearing after something
+			// that isn't an operator means function call
+			if (paren == 1 && level == JBAS_MAX_OPERATOR_LEVEL
+				&& t->type == JBAS_TOKEN_LPAREN && jbas_has_left_operand(t))
+			{
+				jbas_error err = jbas_eval_parenthesis(env, t);
+				if (err) return err;
+				err = jbas_eval_call_operator(env, t->l, t);
+				if (err) return err;
+			}
+			else if (!paren && t->type == JBAS_TOKEN_OPERATOR)
 			{
 				const jbas_operator *op = t->operator_token.op;
 				bool has_left = jbas_has_left_operand(t);
@@ -735,9 +739,11 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 			}
 		}
 
-		fprintf(stderr, "after eval %d: ", level);
+		#ifdef JBAS_DEBUG
+		fprintf(stderr, "%d: ", level);
 		jbas_debug_dump_token_list(stderr, last_op);
 		fprintf(stderr, "\n");
+		#endif
 	}
 
 	if (result) *result = last_op;
