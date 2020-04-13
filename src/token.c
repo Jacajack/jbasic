@@ -28,6 +28,30 @@ void jbas_token_copy(jbas_token *dest, jbas_token *src)
 	}
 }
 
+/**	
+	Efficiently swaps two tokens by pointer swaps
+*/
+void jbas_token_swap(jbas_token *a, jbas_token *b)
+{
+	jbas_token *tmp;
+
+	// A's and B's left pointers (avoid loops)
+	tmp = a->l;
+	a->l = b->l == a ? b : b->l;
+	b->l = tmp == b ? a : tmp;
+
+	// A's and B's right pointers (avoid loops)
+	tmp = a->r;
+	a->r = b->r == a ? b : b->r;
+	b->r = tmp == b ? a : tmp;
+
+	// External pointers
+	if (a->l) a->l->r = a;
+	if (a->r) a->r->l = a;
+	if (b->l) b->l->r = b;
+	if (b->r) b->r->l = b;
+}
+
 // -------------------------------------- TOKEN POOL
 
 jbas_error jbas_token_pool_get(jbas_token_pool *pool, jbas_token **t)

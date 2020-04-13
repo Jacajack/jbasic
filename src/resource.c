@@ -67,7 +67,7 @@ jbas_error jbas_resource_create(jbas_resource_manager *rm, jbas_resource **res)
 
 	// Register in the resource manager
 	int index = rm->ref_count++;
-	if (index >= rm->max_count) return JBAS_RESOURCE_MANAGER_OVERFLOW;
+	if (index >= rm->max_count) return JBAS_RESOURCE_MANAGER_OVERFLOW; // TODO try gc!
 	r->rm_index = index;
 	rm->refs[index] = r;
 

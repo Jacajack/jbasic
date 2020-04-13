@@ -25,6 +25,7 @@ typedef enum jbas_error
 	JBAS_CANNOT_EVAL_RESOURCE, // When you try to eval an e.g. an array symbol
 	JBAS_BAD_ASSIGN,
 	JBAS_BAD_CALL,
+	JBAS_EVAL_OVERFLOW, // Operator stack overflow
 } jbas_error;
 
 

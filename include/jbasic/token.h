@@ -104,6 +104,7 @@ typedef struct
 } jbas_token_pool;
 
 void jbas_token_copy(jbas_token *dest, jbas_token *src);
+void jbas_token_swap(jbas_token *dest, jbas_token *src);
 jbas_error jbas_token_pool_get(jbas_token_pool *pool, jbas_token **t);
 jbas_error jbas_token_pool_return(jbas_token_pool *pool, jbas_token *t);
 jbas_error jbas_token_pool_init(jbas_token_pool *pool, int size);

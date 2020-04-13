@@ -36,6 +36,7 @@ typedef struct jbas_env
 } jbas_env;
 
 
+bool jbas_is_paren(const jbas_token *t);
 jbas_error jbas_remove_parenthesis(jbas_env *env, jbas_token *t);
 jbas_error jbas_get_matching_paren(jbas_token *t, jbas_token **match);
 jbas_error jbas_eval_paren(jbas_env *env, jbas_token *t);
