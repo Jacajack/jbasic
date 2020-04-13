@@ -321,38 +321,40 @@ jbas_error jbas_op_not(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 	return JBAS_OK;
 }
 
+static const jbas_operator jbas_op_neg_def = {.str = "-", .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_sub};
+
 const jbas_operator jbas_operators[JBAS_OPERATOR_COUNT] = 
 {
 	// Assignment operators
-	{.str = "=",   .level = 0, .type = JBAS_OP_BINARY_RL, .fallback = 0, .handler = jbas_op_assign},
+	{.str = "=",   .level = 0, .type = JBAS_OP_BINARY_RL, .fallback = 0, .eval_args = 1, .handler = jbas_op_assign},
 	
 	// Commas for making tuples
-	{.str = ",",   .level = 1, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_comma},
+	{.str = ",",   .level = 1, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_comma},
 
 	// Binary logical operators
-	{.str = "&&",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_and},
-	{.str = "||",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_or},
-	{.str = "AND", .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_and},
-	{.str = "OR",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_or},
+	{.str = "&&",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 0, .handler = jbas_op_and},
+	{.str = "||",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 0, .handler = jbas_op_or},
+	{.str = "AND", .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 0, .handler = jbas_op_and},
+	{.str = "OR",  .level = 2, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 0, .handler = jbas_op_or},
 
 	// Comparison operators
-	{.str = "==",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_eq},
-	{.str = "!=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_neq},
-	{.str = "<",   .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_less},
-	{.str = ">",   .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_greater},
-	{.str = "<=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_leq},
-	{.str = ">=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_geq},
+	{.str = "==",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_eq},
+	{.str = "!=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_neq},
+	{.str = "<",   .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_less},
+	{.str = ">",   .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_greater},
+	{.str = "<=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_leq},
+	{.str = ">=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_geq},
 
 	// Mathematical operators
-	{.str = "+",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_add},
-	{.str = "-",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_sub},
-	{.str = "*",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_mul},
-	{.str = "/",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_div},
-	{.str = "%",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .handler = jbas_op_mod},
+	{.str = "+",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_add},
+	{.str = "-",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = &jbas_op_neg_def, .eval_args = 1, .handler = jbas_op_sub},
+	{.str = "*",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_mul},
+	{.str = "/",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_div},
+	{.str = "%",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_mod},
 
 	// Unary prefix operators
-	{.str = "!",   .level = 6, .type = JBAS_OP_UNARY_PREFIX, .handler = jbas_op_not},
-	{.str = "NOT", .level = 6, .type = JBAS_OP_UNARY_PREFIX, .handler = jbas_op_not},
+	{.str = "!",   .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_not},
+	{.str = "NOT", .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_not},
 
 };
 

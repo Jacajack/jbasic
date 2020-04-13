@@ -131,7 +131,8 @@ jbas_error jbas_token_list_push_back_from_pool(
 	jbas_token_pool *pool,
 	jbas_token *token,
 	jbas_token **inserted);
-jbas_error jbas_token_list_return_to_pool(jbas_token **list_handle, jbas_token_pool *pool);
+jbas_error jbas_token_list_return_handle_to_pool(jbas_token **list_handle, jbas_token_pool *pool);
+jbas_error jbas_token_list_return_to_pool(jbas_token *t, jbas_token_pool *pool);
 jbas_error jbas_token_list_destroy(jbas_token *list, jbas_token_pool *pool);
 
 #endif

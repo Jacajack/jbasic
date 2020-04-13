@@ -29,7 +29,8 @@ void jbas_token_copy(jbas_token *dest, jbas_token *src)
 }
 
 /**	
-	Efficiently swaps two tokens by pointer swaps
+	Swaps two tokens by doing pointer magic
+	This may actually be less efficient than copying...
 */
 void jbas_token_swap(jbas_token *a, jbas_token *b)
 {
@@ -214,23 +215,33 @@ jbas_error jbas_token_list_push_back_from_pool(
 	The handle is moved either to the left or to the right.
 	If removed element is the last one in the list, the handle is set to NULL.
 */
-jbas_error jbas_token_list_return_to_pool(jbas_token **list_handle, jbas_token_pool *pool)
+jbas_error jbas_token_list_return_handle_to_pool(jbas_token **list_handle, jbas_token_pool *pool)
 {
-	// Tuple tokens contain sub-lits
-	if ((*list_handle)->type == JBAS_TOKEN_TUPLE && (*list_handle)->tuple_token.tokens)
-	{
-		jbas_error err = jbas_token_list_destroy((*list_handle)->tuple_token.tokens, pool);
-		if (err) return err;
-	}
-
 	jbas_token *t = *list_handle;
-	if (t->l) t->l->r = t->r;
-	if (t->r) t->r->l = t->l;
 
 	// Move the handle to a valid element
 	if (t->l) *list_handle = t->l;
 	else if (t->r) *list_handle = t->r;
 	else *list_handle = NULL;
+
+	return jbas_token_list_return_to_pool(t, pool);
+}
+
+/**
+	Removes a node from the linked list and moves it to the pool
+	\warning The provided pointer is invalidated
+*/
+jbas_error jbas_token_list_return_to_pool(jbas_token *t, jbas_token_pool *pool)
+{
+	// Tuple tokens contain sub-lits
+	if (t->type == JBAS_TOKEN_TUPLE && t->tuple_token.tokens)
+	{
+		jbas_error err = jbas_token_list_destroy(t->tuple_token.tokens, pool);
+		if (err) return err;
+	}
+
+	if (t->l) t->l->r = t->r;
+	if (t->r) t->r->l = t->l;
 
 	return jbas_token_pool_return(pool, t);
 }
@@ -243,7 +254,7 @@ jbas_error jbas_token_list_destroy(jbas_token *list, jbas_token_pool *pool)
 	jbas_token *t = jbas_token_list_begin(list);
 	while (t)
 	{
-		jbas_error err = jbas_token_list_return_to_pool(&t, pool);
+		jbas_error err = jbas_token_list_return_handle_to_pool(&t, pool);
 		if (err) return err;
 	}
 	

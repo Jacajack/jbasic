@@ -21,6 +21,7 @@ typedef struct jbas_operator
 	jbas_operator_type type;
 	jbas_error (*handler)(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res);
 	const jbas_operator *fallback;
+	bool eval_args;
 } jbas_operator;
 
 extern const jbas_operator jbas_operators[];

@@ -25,12 +25,12 @@ bool jbas_is_paren(const jbas_token *t)
 
 /**
 	Removes entire parentheses (with contents)
-	The provided token iterator is obviously invalidated
+	\warning The provided token iterator is obviously invalidated
 */
 jbas_error jbas_remove_entire_paren(jbas_env *env, jbas_token *t)
 {
 	jbas_error err;
-	jbas_token *h, *match;
+	jbas_token *match;
 
 	// Get match
 	err = jbas_get_matching_paren(t, &match);
@@ -38,31 +38,28 @@ jbas_error jbas_remove_entire_paren(jbas_env *env, jbas_token *t)
 
 	if (t->type == JBAS_TOKEN_LPAREN)
 	{
-		for (h = t->r; t->r != match; h = t->r)
+		while (t->r != match)
 		{
-			err = jbas_token_list_return_to_pool(&h, &env->token_pool);
+			err = jbas_token_list_return_to_pool(t->r, &env->token_pool);
 			if (err) return err;
 		}
 		
-		h = t->r;
-		err = jbas_token_list_return_to_pool(&h, &env->token_pool);
+		err = jbas_token_list_return_to_pool(t->r, &env->token_pool);
 		if (err) return err;
 	}
 	else if (t->type == JBAS_TOKEN_RPAREN)
 	{
-		for (h = t->l; t->l != match; h = t->l)
+		while (t->l != match)
 		{
-			err = jbas_token_list_return_to_pool(&h, &env->token_pool);
+			err = jbas_token_list_return_to_pool(t->l, &env->token_pool);
 			if (err) return err;
 		}
 		
-		h = t->l;
-		err = jbas_token_list_return_to_pool(&h, &env->token_pool);
+		err = jbas_token_list_return_to_pool(t->l, &env->token_pool);
 		if (err) return err;
 	}
 
-	h = t;
-	err = jbas_token_list_return_to_pool(&h, &env->token_pool);
+	err = jbas_token_list_return_to_pool(t, &env->token_pool);
 	if (err) return err;
 
 	return JBAS_OK;
@@ -74,6 +71,17 @@ jbas_error jbas_remove_entire_paren(jbas_env *env, jbas_token *t)
 */
 jbas_error jbas_remove_paren(jbas_env *env, jbas_token *t)
 {
+	jbas_error err;
+	jbas_token *m;
+	err = jbas_get_matching_paren(t, &m);
+	if (err) return err;
+
+	err = jbas_token_list_return_to_pool(t, &env->token_pool);
+	if (err) return err;
+	err = jbas_token_list_return_to_pool(m, &env->token_pool);
+	if (err) return err;
+
+	/*
 	if (t->type == JBAS_TOKEN_LPAREN)
 	{
 		if (!t->r) return JBAS_SYNTAX_UNMATCHED_PARENTHESIS;
@@ -101,6 +109,7 @@ jbas_error jbas_remove_paren(jbas_env *env, jbas_token *t)
 		if (err) return err;
 
 	}
+	*/
 
 	return JBAS_OK;
 }
@@ -278,9 +287,10 @@ jbas_error jbas_token_to_number_type(jbas_env *env, jbas_token *t, jbas_number_t
 	return JBAS_OK;
 }
 
-
-
-bool jbas_is_valid_operand(jbas_token *t)
+/**
+	Only symbols, numbers, strings, tuples and parenthesis are pure operands
+*/
+bool jbas_is_pure_operand(const jbas_token *t)
 {
 	if (!t) return false;
 	return t->type == JBAS_TOKEN_SYMBOL
@@ -292,11 +302,23 @@ bool jbas_is_valid_operand(jbas_token *t)
 }
 
 /**
+	Valid operands are pure operands with optional prefix/postfix operators
+*/
+bool jbas_is_valid_operand(jbas_token *t)
+{
+	if (!t) return false;
+	return jbas_is_pure_operand(t) || (t->type == JBAS_TOKEN_OPERATOR
+			&& (t->operator_token.op->type == JBAS_OP_UNARY_PREFIX
+			|| t->operator_token.op->type == JBAS_OP_UNARY_POSTFIX));
+}
+
+/**
 	Returns true if provided operator has left operand
 */
 bool jbas_has_left_operand(jbas_token *t)
 {
-	return jbas_is_valid_operand(t->l) && t->l->type != JBAS_TOKEN_LPAREN;
+	return jbas_is_valid_operand(t->l) && t->l->type != JBAS_TOKEN_LPAREN
+		&& (t->l->type != JBAS_TOKEN_OPERATOR || t->l->operator_token.op->type == JBAS_OP_UNARY_POSTFIX);
 }
 
 /**
@@ -304,77 +326,19 @@ bool jbas_has_left_operand(jbas_token *t)
 */
 bool jbas_has_right_operand(jbas_token *t)
 {
-	return jbas_is_valid_operand(t->r) && t->r->type != JBAS_TOKEN_RPAREN;
+	return jbas_is_valid_operand(t->r) && t->r->type != JBAS_TOKEN_RPAREN
+		&& (t->r->type != JBAS_TOKEN_OPERATOR || t->r->operator_token.op->type == JBAS_OP_UNARY_PREFIX);
 }
 
-jbas_error jbas_remove_left_operand(jbas_env *env, jbas_token *t)
+/**
+	Removes operand - one token or entire parentheses
+*/
+jbas_error jbas_remove_operand(jbas_env *env, jbas_token *t)
 {
-	if (!t->l) return JBAS_OPERAND_MISSING;
-	if (t->l->type == JBAS_TOKEN_RPAREN) // Remove entire parenthesis
-	{
-		// Remove the parentheses
-		jbas_token *h = t->l;
-		jbas_error err = jbas_token_list_return_to_pool(&h, &env->token_pool);
-		if (err) return err;
-
-		// Remove everything up to the matching parentheses
-		int level = 0;
-		for (h = t->l; h && (h->type != JBAS_TOKEN_LPAREN || level); h = t->l)
-		{
-			level += h->type == JBAS_TOKEN_RPAREN;
-			level -= h->type == JBAS_TOKEN_LPAREN;
-			jbas_error err = jbas_token_list_return_to_pool(&h, &env->token_pool);
-			if (err) return err;
-		}
-
-		if (!h) return JBAS_SYNTAX_UNMATCHED_PARENTHESIS;
-		h = t->l;
-		return jbas_token_list_return_to_pool(&h, &env->token_pool);	
-	}
-	else
-	{
-		jbas_token *h = t->l;
-		return jbas_token_list_return_to_pool(&h, &env->token_pool);	
-	}
-	
-	return JBAS_OK;
+	if (!t) return JBAS_OPERAND_MISSING;
+	if (jbas_is_paren(t)) return jbas_remove_entire_paren(env, t);
+	else return jbas_token_list_return_to_pool(t, &env->token_pool);
 }
-
-
-jbas_error jbas_remove_right_operand(jbas_env *env, jbas_token *t)
-{
-	if (!t->r) return JBAS_OPERAND_MISSING;
-	if (t->r->type == JBAS_TOKEN_LPAREN) // Remove entire parenthesis
-	{
-		// Remove the parentheses
-		jbas_token *h = t->r;
-		jbas_error err = jbas_token_list_return_to_pool(&h, &env->token_pool);
-		if (err) return err;
-
-		// Remove everything up to the matching parentheses
-		int level = 0;
-		for (h = t->r; h && (h->type != JBAS_TOKEN_RPAREN || level); h = t->r)
-		{
-			level += h->type == JBAS_TOKEN_LPAREN;
-			level -= h->type == JBAS_TOKEN_RPAREN;
-			jbas_error err = jbas_token_list_return_to_pool(&h, &env->token_pool);
-			if (err) return err;
-		}
-
-		if (!h) return JBAS_SYNTAX_UNMATCHED_PARENTHESIS;
-		h = t->r;
-		return jbas_token_list_return_to_pool(&h, &env->token_pool);	
-	}
-	else
-	{
-		jbas_token *h = t->r;
-		return jbas_token_list_return_to_pool(&h, &env->token_pool);	
-	}
-	
-	return JBAS_OK;
-}
-
-
 
 int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *end2)
 {
@@ -445,46 +409,16 @@ jbas_error jbas_print(const jbas_token *token, int count)
 	return JBAS_OK;
 }
 
-jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t, jbas_operator_type unary_type)
+jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t)
 {
-	if (!unary_type) unary_type = t->operator_token.op->type;
-	if (unary_type == JBAS_OP_UNARY_PREFIX)
-	{
-		if (!jbas_has_left_operand(t) && jbas_has_right_operand(t))
-		{
-			// Evaluate parenthesis
-			if (t->r->type == JBAS_TOKEN_LPAREN) jbas_eval_paren(env, t->r);
-
-			// Call the operator handler and have it replaced with operation result
-			t->operator_token.op->handler(env, NULL, t->r, t);
-
-			// Remove operand
-			jbas_error err;
-			err = jbas_remove_right_operand(env, t);
-			if (err) return err;
-		}
-		else
-			return JBAS_OPERAND_MISSING;
-	}
-	else if (unary_type == JBAS_OP_UNARY_POSTFIX)
-	{
-		if (jbas_has_left_operand(t) && !jbas_has_right_operand(t))
-		{
-			// Evaluate parenthesis
-			if (t->l->type == JBAS_TOKEN_RPAREN) jbas_eval_paren(env, t->l);
-
-			// Call the operator handler and have it replaced with operation result
-			t->operator_token.op->handler(env, t->l, NULL, t);
-
-			// Remove operand
-			jbas_error err;
-			err = jbas_remove_left_operand(env, t);
-			if (err) return err;
-		}
-		else
-			return JBAS_OPERAND_MISSING;
-	}
-
+	jbas_error err;
+	jbas_token *operand = t->operator_token.op->type == JBAS_OP_UNARY_PREFIX ? t->r : t->l;
+	if (!jbas_is_valid_operand(operand)) return JBAS_OPERAND_MISSING;
+	if (jbas_is_paren(operand)) jbas_eval_paren(env, operand);
+	err = t->operator_token.op->handler(env, operand == t->l ? t->l : NULL, operand == t->r ? t->r : NULL, t);
+	if (err) return err;
+	err = jbas_remove_operand(env, t->r);
+	if (err) return err;
 	return JBAS_OK;
 }
 
@@ -493,17 +427,20 @@ jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
 	if (jbas_has_left_operand(t) && jbas_has_right_operand(t))
 	{
 		// Evaluate parenthesis
-		if (t->l->type == JBAS_TOKEN_RPAREN) jbas_eval_paren(env, t->l);
-		if (t->r->type == JBAS_TOKEN_LPAREN) jbas_eval_paren(env, t->r);
+		if (t->operator_token.op->eval_args)
+		{
+			if (jbas_is_paren(t->l)) jbas_eval_paren(env, t->l);
+			if (jbas_is_paren(t->r)) jbas_eval_paren(env, t->r);
+		}
 
 		// Call the operator handler and have it replaced with operation result
 		t->operator_token.op->handler(env, t->l, t->r, t);
 
 		// Remove operands
 		jbas_error err;
-		err = jbas_remove_left_operand(env, t);
+		err = jbas_remove_operand(env, t->l);
 		if (err) return err;
-		err = jbas_remove_right_operand(env, t);
+		err = jbas_remove_operand(env, t->r);
 		if (err) return err;
 	}
 	else
@@ -543,53 +480,58 @@ int jbas_operator_token_compare(const void *av, const void *bv)
 	}
 }
 
+bool jbas_is_binary_operator(jbas_token *t)
+{
+	return t && t->type == JBAS_TOKEN_OPERATOR && (t->operator_token.op->type == JBAS_OP_BINARY_LR || t->operator_token.op->type == JBAS_OP_BINARY_RL);  
+}
+
 jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end, jbas_token **result)
 {
 	jbas_token *operators[JBAS_MAX_EVAL_OPERATORS];
 	size_t opcnt = 0;
 
-	// Find all operators (including opening parentheses)
+	// Find all operators (including opening parenthesis)
 	for (jbas_token *t = begin; t && t != end; t = t->r)
 	{
-		// Overflow
-		if (opcnt == JBAS_MAX_EVAL_OPERATORS)
-		{
-			JBAS_ERROR_REASON(env, "too many opeartors in chunk passed to jbas_eval(). Try changing JBAS_MAX_EVAL_OPERATORS");
-			return JBAS_EVAL_OVERFLOW;
-		}
-
 		// Operators
 		if (t->type == JBAS_TOKEN_OPERATOR)
 		{
-			const jbas_operator *op = t->operator_token.op;
-			bool has_left = jbas_has_left_operand(t);
-			bool has_right = jbas_has_right_operand(t);
-
-			// Binary operator has both operands
-			if (op->type == JBAS_OP_BINARY_LR || op->type == JBAS_OP_BINARY_RL)
+			// Overflow
+			if (opcnt == JBAS_MAX_EVAL_OPERATORS)
 			{
-				// Has both operands
-				if (has_left && has_right)
-				{
-					operators[opcnt++] = t;
-					continue;
-				}
-				else if (has_left != has_right) // Fallback unary
-					op = t->operator_token.op = op->fallback;
+				JBAS_ERROR_REASON(env, "too many opeartors in chunk passed to jbas_eval(). Try changing JBAS_MAX_EVAL_OPERATORS");
+				return JBAS_EVAL_OVERFLOW;
 			}
 
-			// Unary operator with matching operand
-			if (op && ((op->type == JBAS_OP_UNARY_PREFIX && has_right) || (op->type == JBAS_OP_UNARY_POSTFIX && has_left)))
-			{
-				operators[opcnt++] = t;
-				continue;
-			}
-
-			// Fail
-			JBAS_ERROR_REASON(env, "operand missing (at operator search level)");
-			return JBAS_OPERAND_MISSING;
+			operators[opcnt++] = t;
 		}
 
+		// Skip parenthesis and do not register them yet
+		if (t->type == JBAS_TOKEN_LPAREN)
+			jbas_get_matching_paren(t, &t);	
+	}
+
+	// Find binary operators that are actually unary - forward pass - postfix operators
+	for (int i = 0; i < opcnt; i++)
+	{
+		jbas_token *t = operators[i];
+		const jbas_operator *op = t->operator_token.op;
+		if (jbas_is_binary_operator(t) && jbas_has_left_operand(t) && !jbas_has_right_operand(t))
+			if (op->fallback) t->operator_token.op = op->fallback;
+	}
+
+	// Find binary operators that are actually unary - backward pass - prefix operators
+	for (int i = opcnt - 1; i >= 0; i--)
+	{
+		jbas_token *t = operators[i];
+		const jbas_operator *op = t->operator_token.op;
+		if (jbas_is_binary_operator(t) && !jbas_has_left_operand(t) && jbas_has_right_operand(t))
+			if (op->fallback) t->operator_token.op = op->fallback;
+	}
+
+	// Find all call operators
+	for (jbas_token *t = begin; t && t != end; t = t->r)
+	{
 		// Parenthesis skipping and call operator registration
 		if (t->type == JBAS_TOKEN_LPAREN )
 		{
@@ -613,7 +555,7 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 			if (op->type == JBAS_OP_BINARY_LR || op->type == JBAS_OP_BINARY_RL)
 				err = jbas_eval_binary_operator(env, t);
 			else
-				err = jbas_eval_unary_operator(env, t, op->type);
+				err = jbas_eval_unary_operator(env, t);
 			if (err) return err;
 
 		}
@@ -624,6 +566,12 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 			err = jbas_eval_call_operator(env, t->l, t);
 			if (err) return err;	
 		}
+
+		#ifdef JBAS_DEBUG
+		fprintf(stderr, " >> ");
+		jbas_debug_dump_token_list(stderr, t);
+		fprintf(stderr, "\n");
+		#endif 
 	}
 
 	if (result) *result = opcnt ? operators[opcnt - 1] : begin;
@@ -675,7 +623,7 @@ jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *co
 	// Delete what's left
 	expr = jbas_token_list_begin(expr);
 	while (expr)
-		jbas_token_list_return_to_pool(&expr, &env->token_pool);
+		jbas_token_list_return_handle_to_pool(&expr, &env->token_pool);
 
 	return JBAS_OK;
 }

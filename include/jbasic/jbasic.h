@@ -54,7 +54,7 @@ int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *e
 int jbas_is_name_char(char c);
 jbas_error jbas_print(const jbas_token *token, int count);
 jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **next, jbas_token *token);
-jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t, jbas_operator_type unary_type);
+jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t);
 jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t);
 jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end, jbas_token **result);
 jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *const token);
