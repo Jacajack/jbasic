@@ -34,8 +34,12 @@ void jbas_token_copy(jbas_token *dest, jbas_token *src)
 */
 void jbas_token_swap(jbas_token *a, jbas_token *b)
 {
-	jbas_token *tmp;
+	jbas_token tmp;
+	jbas_token_copy(&tmp, a);
+	jbas_token_copy(a, b);
+	jbas_token_copy(b, &tmp);
 
+	/*
 	// A's and B's left pointers (avoid loops)
 	tmp = a->l;
 	a->l = b->l == a ? b : b->l;
@@ -51,6 +55,7 @@ void jbas_token_swap(jbas_token *a, jbas_token *b)
 	if (a->r) a->r->l = a;
 	if (b->l) b->l->r = b;
 	if (b->r) b->r->l = b;
+	*/
 }
 
 // -------------------------------------- TOKEN POOL
