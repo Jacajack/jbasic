@@ -1,12 +1,14 @@
 #include <jbasic/op.h>
 #include <jbasic/jbasic.h>
+#include <jbasic/paren.h>
+#include <jbasic/cast.h>
 
 /*
 	TOKEN OPERATIONS MAY *NOT* INVALIDATE ITERATOR (POINTER)
 	POINTING TO THE OPERATOR ITSELF
 */
 
-jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	if (a->type != JBAS_TOKEN_SYMBOL)
 	{
@@ -47,7 +49,7 @@ jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jbas_toke
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_comma(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_comma(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	// No tuple on either side
 	if (a->type != JBAS_TOKEN_TUPLE && b->type != JBAS_TOKEN_TUPLE)
@@ -111,7 +113,7 @@ jbas_error jbas_op_comma(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token
 	Type promotions are performed after an attempt to convert
 	both operands to numeric types.
 */
-jbas_error jbas_binary_math_op(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_binary_math_op(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	// Convert both operands to numbers
 	jbas_error err = JBAS_OK;
@@ -134,7 +136,7 @@ jbas_error jbas_binary_math_op(jbas_env *env, jbas_token *a, jbas_token *b, jbas
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_and(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_and(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	// Result type
 	res->type = JBAS_TOKEN_NUMBER;
@@ -158,7 +160,7 @@ jbas_error jbas_op_and(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_or(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_or(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	// Result type
 	res->type = JBAS_TOKEN_NUMBER;
@@ -182,13 +184,13 @@ jbas_error jbas_op_or(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *r
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_eq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_eq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	// For numbers
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_less(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_less(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	return JBAS_OK;
 }
@@ -196,7 +198,7 @@ jbas_error jbas_op_less(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token 
 /**
 	Based on < and = operators
 */
-jbas_error jbas_op_neq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_neq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	jbas_error err = jbas_op_eq(env, a, b, res);
 	if (err) return err;
@@ -207,7 +209,7 @@ jbas_error jbas_op_neq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 /**
 	Based on < and = operators
 */
-jbas_error jbas_op_greater(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_greater(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	return jbas_op_less(env, b, a, res);
 }
@@ -215,7 +217,7 @@ jbas_error jbas_op_greater(jbas_env *env, jbas_token *a, jbas_token *b, jbas_tok
 /**
 	Based on < and = operators
 */
-jbas_error jbas_op_leq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_leq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	jbas_token tmp;
 	jbas_error err = jbas_op_less(env, a, b, &tmp);
@@ -229,12 +231,12 @@ jbas_error jbas_op_leq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 /**
 	Based on < and = operators
 */
-jbas_error jbas_op_geq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_geq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	return jbas_op_leq(env, b, a, res);
 }
 
-jbas_error jbas_op_add(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_add(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	jbas_error err = jbas_binary_math_op(env, a, b, res);
 	if (err) return err;
@@ -247,7 +249,7 @@ jbas_error jbas_op_add(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_sub(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_sub(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	if (a && b) // Binary action
 	{
@@ -277,7 +279,7 @@ jbas_error jbas_op_sub(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_mul(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_mul(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	jbas_error err = jbas_binary_math_op(env, a, b, res);
 	if (err) return err;
@@ -290,7 +292,7 @@ jbas_error jbas_op_mul(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_div(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_div(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	jbas_error err = jbas_binary_math_op(env, a, b, res);
 	if (err) return err;
@@ -303,7 +305,7 @@ jbas_error jbas_op_div(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_mod(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_mod(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	jbas_error err = jbas_binary_math_op(env, a, b, res);
 	if (err) return err;
@@ -316,13 +318,23 @@ jbas_error jbas_op_mod(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *
 	return JBAS_OK;
 }
 
-jbas_error jbas_op_not(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_not(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	return JBAS_OK;
 }
 
+
+// ---- END OF OPERATOR IMPLEMENTATIONS
+
+
+/**
+	Alternative minus sign operation
+*/
 static const jbas_operator jbas_op_neg_def = {.str = "-", .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_sub};
 
+/**
+	Operator table
+*/
 const jbas_operator jbas_operators[JBAS_OPERATOR_COUNT] = 
 {
 	// Assignment operators
@@ -355,7 +367,6 @@ const jbas_operator jbas_operators[JBAS_OPERATOR_COUNT] =
 	// Unary prefix operators
 	{.str = "!",   .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_not},
 	{.str = "NOT", .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_not},
-
 };
 
 int jbas_is_operator_char(char c)
@@ -363,3 +374,198 @@ int jbas_is_operator_char(char c)
 	return isalpha(c) || strchr("=<>!,&|+-*/%", c);
 }
 
+/**
+	True if provided token is an binary operator
+*/
+bool jbas_is_binary_operator(jbas_token *t)
+{
+	return t && t->type == JBAS_TOKEN_OPERATOR && (t->operator_token.op->type == JBAS_OP_BINARY_LR || t->operator_token.op->type == JBAS_OP_BINARY_RL);  
+}
+
+/**
+	True if provided token is an unary operator
+*/
+bool jbas_is_unary_operator(jbas_token *t)
+{
+	return t && t->type == JBAS_TOKEN_OPERATOR && (t->operator_token.op->type == JBAS_OP_UNARY_PREFIX || t->operator_token.op->type == JBAS_OP_UNARY_POSTFIX);  
+}
+
+/**
+	Only symbols, numbers, strings, tuples and parenthesis are pure operands
+*/
+bool jbas_is_pure_operand(const jbas_token *t)
+{
+	if (!t) return false;
+	return t->type == JBAS_TOKEN_SYMBOL
+		|| t->type == JBAS_TOKEN_NUMBER
+		|| t->type == JBAS_TOKEN_STRING
+		|| t->type == JBAS_TOKEN_LPAREN
+		|| t->type == JBAS_TOKEN_RPAREN
+		|| t->type == JBAS_TOKEN_TUPLE;
+}
+
+/**
+	Valid operands are pure operands with optional prefix/postfix operators
+*/
+bool jbas_is_valid_operand(jbas_token *t)
+{
+	if (!t) return false;
+	return jbas_is_pure_operand(t) || (t->type == JBAS_TOKEN_OPERATOR
+			&& (t->operator_token.op->type == JBAS_OP_UNARY_PREFIX
+			|| t->operator_token.op->type == JBAS_OP_UNARY_POSTFIX));
+}
+
+/**
+	Returns true if provided operator has left operand
+*/
+bool jbas_has_left_operand(jbas_token *t)
+{
+	return jbas_is_valid_operand(t->l) && t->l->type != JBAS_TOKEN_LPAREN
+		&& (t->l->type != JBAS_TOKEN_OPERATOR || t->l->operator_token.op->type == JBAS_OP_UNARY_POSTFIX);
+}
+
+/**
+	Returns true if provided operator has right operand
+*/
+bool jbas_has_right_operand(jbas_token *t)
+{
+	return jbas_is_valid_operand(t->r) && t->r->type != JBAS_TOKEN_RPAREN
+		&& (t->r->type != JBAS_TOKEN_OPERATOR || t->r->operator_token.op->type == JBAS_OP_UNARY_PREFIX);
+}
+
+/**
+	Removes operand - one token or entire parentheses
+*/
+jbas_error jbas_remove_operand(jbas_env *env, jbas_token *t)
+{
+	if (!t) return JBAS_OPERAND_MISSING;
+	if (jbas_is_paren(t)) return jbas_remove_entire_paren(env, t);
+	else return jbas_token_list_return_to_pool(t, &env->token_pool);
+}
+
+/**
+	Prepares and evaluates any unary operation
+*/
+jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t)
+{
+	jbas_error err;
+	jbas_token *operand = t->operator_token.op->type == JBAS_OP_UNARY_PREFIX ? t->r : t->l;
+	if (!jbas_is_valid_operand(operand)) return JBAS_OPERAND_MISSING;
+	if (jbas_is_paren(operand)) jbas_eval_paren(env, operand);
+	err = t->operator_token.op->handler(env, operand == t->l ? t->l : NULL, operand == t->r ? t->r : NULL, t);
+	if (err) return err;
+	err = jbas_remove_operand(env, t->r);
+	if (err) return err;
+	return JBAS_OK;
+}
+
+/**
+	Prepares and evaluates any binary operation
+*/
+jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
+{
+	if (jbas_has_left_operand(t) && jbas_has_right_operand(t))
+	{
+		// Evaluate parenthesis
+		if (t->operator_token.op->eval_args)
+		{
+			if (jbas_is_paren(t->l)) jbas_eval_paren(env, t->l);
+			if (jbas_is_paren(t->r)) jbas_eval_paren(env, t->r);
+		}
+
+		// Call the operator handler and have it replaced with operation result
+		t->operator_token.op->handler(env, t->l, t->r, t);
+
+		// Remove operands
+		jbas_error err;
+		err = jbas_remove_operand(env, t->l);
+		if (err) return err;
+		err = jbas_remove_operand(env, t->r);
+		if (err) return err;
+	}
+	else
+		return JBAS_OPERAND_MISSING;
+	return JBAS_OK;
+}
+
+/**
+	Evaluates a call operation
+*/
+jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *args)
+{
+	JBAS_ERROR_REASON(env, "object is not callable!");
+	return JBAS_BAD_CALL;
+
+	// Eval args parentheses
+	jbas_error err = jbas_eval_paren(env, args);
+	if (err) return err;
+
+	// Remove args after call
+	err = jbas_remove_operand(env, args);
+	if (err) return err;
+	return JBAS_OK;
+}
+
+
+/**
+	Operator token comparison function for qsort.
+	Operators that should be evaluated first will 
+	appear at the beginning of the sorted array.
+
+	Precedence type and associativity and position in the expression are all taken into account.
+*/
+int jbas_operator_token_compare(const void *av, const void *bv)
+{
+	const jbas_operator_sort_bucket *ab = (const jbas_operator_sort_bucket*)av;
+	const jbas_operator_sort_bucket *bb = (const jbas_operator_sort_bucket*)bv;
+	const jbas_token *at = ab->token;
+	const jbas_token *bt = bb->token;
+	int ap = ab->pos;
+	int bp = bb->pos;
+
+	if (at->type == JBAS_TOKEN_LPAREN) return -1;
+	else if (bt->type == JBAS_TOKEN_LPAREN) return 1;
+	else
+	{
+		const jbas_operator *aop = at->operator_token.op;
+		const jbas_operator *bop = bt->operator_token.op;
+
+		// Precedence level
+		if (aop->level == bop->level)
+		{
+			// Type/associativity
+			if (aop->type == bop->type)
+			{
+				// Sort by position in the expression
+				if (aop->type == JBAS_OP_UNARY_POSTFIX || aop->type == JBAS_OP_BINARY_LR) 
+					return ap - bp; // Left to right
+				else
+					return bp - ap; // Right to left
+			}
+			else return aop->type - bop->type; // Different type/associativity
+		}
+		else return bop->level - aop->level; // Different precedence level
+	}
+}
+
+/**
+	Attempts to replace provided operator with any of its fallback opertors that would
+	fit the environment
+*/
+void jbas_try_fallback_operator(jbas_token *t, jbas_operator_type fallback_type)
+{
+	if (t->type != JBAS_TOKEN_OPERATOR) return;
+	const jbas_operator *op = t->operator_token.op;
+
+	if ((fallback_type == JBAS_OP_UNARY_PREFIX && op->type != fallback_type && !jbas_has_left_operand(t) && jbas_has_right_operand(t))
+		|| (fallback_type == JBAS_OP_UNARY_POSTFIX && op->type != fallback_type && jbas_has_left_operand(t) && !jbas_has_right_operand(t)))
+	{
+		// Traverse fallback chain
+		for (; op; op = op->fallback)
+			if (op->type == fallback_type)
+			{
+				t->operator_token.op = op;
+				break;
+			}
+	}
+}

@@ -24,10 +24,31 @@ typedef struct jbas_operator
 	bool eval_args;
 } jbas_operator;
 
+typedef struct jbas_operator_sort_bucket
+{
+	jbas_token *token;
+	int pos;
+} jbas_operator_sort_bucket;
+
 extern const jbas_operator jbas_operators[];
 
 int jbas_is_operator_char(char c);
 
+bool jbas_is_binary_operator(jbas_token *t);
+bool jbas_is_unary_operator(jbas_token *t);
+
+bool jbas_is_pure_operand(const jbas_token *t);
+bool jbas_is_valid_operand(jbas_token *t);
+bool jbas_has_left_operand(jbas_token *t);
+bool jbas_has_right_operand(jbas_token *t);
+jbas_error jbas_remove_operand(jbas_env *env, jbas_token *t);
+
+jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t);
+jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t);
+jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *args);
+
+int jbas_operator_token_compare(const void *av, const void *bv);
+void jbas_try_fallback_operator(jbas_token *t, jbas_operator_type fallback_type);
 
 #define JBAS_MAX_OPERATOR_LEVEL 6
 #define JBAS_OPERATOR_COUNT 19

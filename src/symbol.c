@@ -112,3 +112,64 @@ void jbas_symbol_destroy(jbas_symbol_manager *sm, jbas_symbol *sym)
 	sm->free_slots[sm->free_slot_count++] = slot;
 	sm->is_used[slot] = false;
 }
+
+
+/**
+	Returns true if provided token symbol is a scalar.
+*/
+bool jbas_is_scalar_symbol(jbas_token *t)
+{
+	if (t->type != JBAS_TOKEN_SYMBOL) return true;
+	else
+	{
+		jbas_resource *res = t->symbol_token.sym->resource;
+		if (!res) return true;
+
+		switch (res->type)
+		{
+			case JBAS_RESOURCE_NUMBER:
+				return true;
+
+			case JBAS_RESOURCE_STRING:
+				return true;
+				break;
+
+			default:
+				return false;
+				break;
+		}
+	}
+}
+
+/**
+	Evaluates a scalar symbol - replaces it with its value
+*/
+jbas_error jbas_eval_scalar_symbol(jbas_env *env, jbas_token *t)
+{
+	if (t->type != JBAS_TOKEN_SYMBOL) return JBAS_OK;
+	if (!jbas_is_scalar_symbol(t))
+	{
+		JBAS_ERROR_REASON(env, "attempted to evaluate non-scalar symbol value");
+		return JBAS_EVAL_NON_SCALAR;
+	}
+
+	jbas_symbol *sym = t->symbol_token.sym;
+	jbas_token res;
+
+	if (!sym->resource) return JBAS_UNINITIALIZED_SYMBOL;
+	switch (sym->resource->type)
+	{
+		case JBAS_RESOURCE_NUMBER:
+			res.type = JBAS_TOKEN_NUMBER;
+			res.number_token = sym->resource->number;
+			break;
+
+		default:
+			return JBAS_CANNOT_EVAL_RESOURCE;
+			break;
+	}
+
+	jbas_token_copy(t, &res);
+	return JBAS_OK;
+}
+

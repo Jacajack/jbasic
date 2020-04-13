@@ -26,6 +26,7 @@ typedef enum jbas_error
 	JBAS_BAD_ASSIGN,
 	JBAS_BAD_CALL,
 	JBAS_EVAL_OVERFLOW, // Operator stack overflow
+	JBAS_EVAL_NON_SCALAR, // Attempt to evaluate non-scalar token
 } jbas_error;
 
 
