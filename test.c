@@ -16,7 +16,8 @@ int main(void)
 	// "DUPA = 77\n"
 	//"14 + foo(7 + 1, 2 * 3) \n"
 	"A = 0\n"
-	"B = 1 - - - ( 2 )\n"
+	"B = 0 OR (A = 1)\n"
+	// "B = 1 - - 7 * ( A =  - - - - 2 + - 3 )\n"
 	//"( 1 + 4 , 7, 3 ) , 33 * 6 , ( 2 , ( 4 , 5 / 1.1 ) ) \n"
 	// "C = 1 && 0.14\n"
 	//"Y = 2 + 3 * ( 7.0 / 5 + 4 ) + 3 * ( 21.7 * 55.23 - 3.127 / 12 )\n"
@@ -38,8 +39,7 @@ int main(void)
 
 	printf("\n\n\n");
 
-	for (jbas_token *t = jbas_token_list_begin(env.tokens); t; t = t->r)
-		jbas_debug_dump_token(stderr, t);
+	jbas_debug_dump_token_list(stderr, env.tokens);
 
 	printf("\n\n\n");
 

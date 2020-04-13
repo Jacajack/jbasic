@@ -78,10 +78,16 @@ void jbas_debug_dump_token(FILE *f, jbas_token *token)
 	}
 }
 
+void jbas_debug_dump_token_list_begin_end(FILE *f, jbas_token *begin, jbas_token *end)
+{
+	for (; begin && begin != end; begin = begin->r)
+		jbas_debug_dump_token(f, begin);
+}
+
+
 void jbas_debug_dump_token_list(FILE *f, jbas_token *t)
 {
-	for (t = jbas_token_list_begin(t); t; t = t->r)
-		jbas_debug_dump_token(f, t);
+	jbas_debug_dump_token_list_begin_end(f, jbas_token_list_begin(t), NULL);
 }
 
 void jbas_debug_dump_resource(FILE *f, jbas_resource *res)

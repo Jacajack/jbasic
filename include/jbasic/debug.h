@@ -8,6 +8,7 @@
 
 const char *jbas_debug_keyword_str(jbas_keyword id);
 void jbas_debug_dump_token(FILE *f, jbas_token *token);
+void jbas_debug_dump_token_list_begin_end(FILE *f, jbas_token *begin, jbas_token *end);
 void jbas_debug_dump_token_list(FILE *f, jbas_token *t);
 void jbas_debug_dump_resource(FILE *f, jbas_resource *res);
 void jbas_debug_dump_symbol(FILE *f, jbas_symbol *sym);
