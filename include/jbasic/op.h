@@ -33,6 +33,7 @@ typedef struct jbas_operator_sort_bucket
 extern const jbas_operator jbas_operators[];
 
 int jbas_is_operator_char(char c);
+const jbas_operator *jbas_get_operator_by_str(const char *b, const char *e);
 
 bool jbas_is_binary_operator(jbas_token *t);
 bool jbas_is_unary_operator(jbas_token *t);

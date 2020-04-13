@@ -184,31 +184,32 @@ jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *co
 	*next = t;
 
 	// DEBUG
+	#ifdef JBAS_DEBUG
 	fprintf(stderr, "Will evaluate: ");
 	for (jbas_token *t = jbas_token_list_begin(expr); t; t = t->r)
 		jbas_debug_dump_token(stderr, t);
 	fprintf(stderr, "\n");
-
-
+	#endif
 
 	jbas_error eval_err = jbas_eval(env, jbas_token_list_begin(expr), NULL, NULL);
-	fprintf(stderr, "eval err: %d\n", eval_err);
-
-
+	
 	// DEBUG
+	#ifdef JBAS_DEBUG
+	fprintf(stderr, "Eval err: %d\n", eval_err);
 	fprintf(stderr, "After eval: ");
 	for (jbas_token *t = jbas_token_list_begin(expr); t; t = t->r)
 		jbas_debug_dump_token(stderr, t);
 	fprintf(stderr, "\n");
+	#endif
 
 	// Delete what's left
-	expr = jbas_token_list_begin(expr);
-	while (expr)
-		jbas_token_list_return_handle_to_pool(&expr, &env->token_pool);
-
+	jbas_token_list_destroy(expr, &env->token_pool);
 	return JBAS_OK;
 }
 
+/**
+	Runs entire loaded program
+*/
 jbas_error jbas_run_tokens(jbas_env *env)
 {
 	jbas_token *token = jbas_token_list_begin(env->tokens);
@@ -239,12 +240,29 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		return JBAS_EMPTY_TOKEN;
 	}
 
-
-	// If it's ';', it's a delimiter
+	// If it's ';' or a newline, it's a delimiter
 	if (*s == ';' || *s == '\n')
 	{
 		*next = s + 1;
 		token->type = JBAS_TOKEN_DELIMITER;
+		return JBAS_OK;
+	}
+
+	// Left parenthesis
+	if (*s == '(')
+	{
+		*next = s + 1;
+		token->type = JBAS_TOKEN_LPAREN;
+		token->paren_token.match = NULL;
+		return JBAS_OK;
+	}
+
+	// Right parenthesis
+	if (*s == ')')
+	{
+		*next = s + 1;
+		token->type = JBAS_TOKEN_RPAREN;
+		token->paren_token.match = NULL;
 		return JBAS_OK;
 	}
 
@@ -307,58 +325,35 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		return err;
 	}
 
-	// Left parenthesis
-	if (*s == '(')
+	// If the token starts with a letter, it must be treated as a keyword/operator/symbol name
+	if (jbas_is_name_char(*s))
 	{
-		*next = s + 1;
-		token->type = JBAS_TOKEN_LPAREN;
-		token->paren_token.match = NULL;
-		return JBAS_OK;
-	}
+		const char *name_end = s;
+		while (jbas_is_name_char(*name_end)) name_end++;
+		*next = name_end;
 
-	// Right parenthesis
-	if (*s == ')')
-	{
-		*next = s + 1;
-		token->type = JBAS_TOKEN_RPAREN;
-		token->paren_token.match = NULL;
-		return JBAS_OK;
-	}
-
-	// An operator
-	const char *operator_end = s;
-	while (jbas_is_operator_char(*operator_end)) operator_end++;
-	*next = operator_end;
-
-	for (int i = 0; i < JBAS_OPERATOR_COUNT; i++)
-	{
-		if (!jbas_namecmp(s, operator_end, jbas_operators[i].str, NULL))
+		// Operator check
+		const jbas_operator *op = jbas_get_operator_by_str(s, name_end);
+		if (op)
 		{
 			token->type = JBAS_TOKEN_OPERATOR;
-			token->operator_token.op = &jbas_operators[i];
+			token->operator_token.op = op;
 			return JBAS_OK;
 		}
-	}
 
-	// A symbol/keyword
-	const char *name_end = s;
-	while (jbas_is_name_char(*name_end)) name_end++;
-	*next = name_end;
-	
-	// Keyword check
-	for (int i = 0; i < JBAS_KEYWORD_COUNT; i++)
-	{
-		if (!jbas_namecmp(s, name_end, jbas_keywords[i].name, NULL))
+		// Keyword check
+		for (int i = 0; i < JBAS_KEYWORD_COUNT; i++)
 		{
-			// Found matching keyword
-			token->type = JBAS_TOKEN_KEYWORD;
-			token->keyword_token.id = jbas_keywords[i].id;
-			return JBAS_OK;
+			if (!jbas_namecmp(s, name_end, jbas_keywords[i].name, NULL))
+			{
+				// Found matching keyword
+				token->type = JBAS_TOKEN_KEYWORD;
+				token->keyword_token.id = jbas_keywords[i].id;
+				return JBAS_OK;
+			}
 		}
-	}
 
-	// It must be a symbol token
-	{
+		// Symbol
 		token->type = JBAS_TOKEN_SYMBOL;	
 		jbas_symbol *sym;
 		jbas_error err;
@@ -368,14 +363,35 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 			token->symbol_token.sym = sym;
 		else
 			return err;
-		
-		
+
+		return JBAS_OK;
 	}
 
+	// Max crunch operator
+	const char *match_end = NULL;
+	const jbas_operator *match_op = NULL;
+	for (const char *op_end = s + 1; *op_end && jbas_is_operator_char(*(op_end - 1)); op_end++)
+	{
+		const jbas_operator *op = jbas_get_operator_by_str(s, op_end);
+		if (op)
+		{
+			match_op = op;
+			match_end = op_end;
+		}
+	}
+	
+	// Found a valid operator
+	if (match_op)
+	{
+		token->type = JBAS_TOKEN_OPERATOR;
+		token->operator_token.op = match_op;
+		*next = match_end;
+		return JBAS_OK;
+	} 
 
-	// Todo failed token!!!!
-
-	return JBAS_OK;
+	// Bad token!
+	JBAS_ERROR_REASON(env, "bad syntax! could not tokenize!");
+	return JBAS_SYNTAX_ERROR;
 }
 
 

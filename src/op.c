@@ -375,6 +375,20 @@ int jbas_is_operator_char(char c)
 }
 
 /**
+	Returns a pointer to operator definition
+*/
+const jbas_operator *jbas_get_operator_by_str(const char *b, const char *e)
+{
+	for (int i = 0; i < JBAS_OPERATOR_COUNT; i++)
+	{
+		if (!jbas_namecmp(jbas_operators[i].str, NULL, b, e))
+			return &jbas_operators[i];
+	}
+
+	return NULL;
+}
+
+/**
 	True if provided token is an binary operator
 */
 bool jbas_is_binary_operator(jbas_token *t)
