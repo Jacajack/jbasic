@@ -19,6 +19,11 @@ int main(void)
 	"else_ok = 1\n"
 	"END\n"
 
+	"i = 4\n"
+	"while i\n"
+	"i = i - 1\n"
+	"end\n"
+
 	"A=7\n"
 	"ORNONTOWICE = 0\n"
 	"B=-------(A*2)\n"

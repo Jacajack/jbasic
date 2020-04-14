@@ -67,72 +67,48 @@ static jbas_error jbas_kw_if(jbas_env *env, jbas_token *begin, jbas_token **next
 	
 	*next = t_end;
 	return JBAS_OK;
+}
 
+static jbas_error jbas_kw_while(jbas_env *env, jbas_token *begin, jbas_token **next)
+{
+	jbas_error err;
+	jbas_token *t_end;
+	err = jbas_get_block_end(env, begin, &t_end);
+	if (err) return err;
 
-	// Run IF-ELSE/END or ELSE/END block
-
-	// If the condition was true, the execution is continued
-	// right after the condition expression. Otherwise, we
-	// continue after the end keyword.
-	//*next = cond_true ? t_true : t_end;
-
-	//if (begin->type !)
-	/*
-	int level;
-	jbas_token *t;
-
-	// Look for THEN
-	jbas_token *t_then;
-	level = 0;
-	for (t = begin->r; t && (level || !(t->type == JBAS_TOKEN_KEYWORD && t->keyword_token.id == JBAS_KW_THEN)); t = t->r)
+	while (1)
 	{
-		level += t->type == JBAS_TOKEN_KEYWORD && t->keyword_token.id == JBAS_KW_IF;
-		level -= t->type == JBAS_TOKEN_KEYWORD && t->keyword_token.id == JBAS_KW_ENDIF;
-		
-		// No THEN
-		if (level < 0)
+		// Evaluate the condition
+		jbas_token *t_cond = begin->r;
+		jbas_token *t_cond_result = NULL;
+		jbas_token *t_body = NULL;
+		bool cond_true = false;
+		err = jbas_eval_instruction(env, t_cond, &t_body, &t_cond_result);
+		if (err) return err;
+
+		// Check if the condition is true
+		err = jbas_token_to_number_type(env, t_cond_result, JBAS_NUM_BOOL);	
+		if (err)
 		{
-			t = NULL;
-			break;
+			// Delete the evaluation result
+			jbas_token_list_destroy(t_cond_result, &env->token_pool);
+			JBAS_ERROR_REASON(env, "could not convert IF condition to BOOL");
+			return err;
 		}
-	}
-	t_then = t;
+		cond_true = t_cond_result->number_token.i;
 
-	if (!t_then)
-	{
-		JBAS_ERROR_REASON(env, "THEN keyword missing!");
-		return JBAS_SYNTAX_ERROR;
-	}
-	
+		// Delete the evaluation result
+		jbas_token_list_destroy(t_cond_result, &env->token_pool);
 
-	// Look for ELSE
-	jbas_token *t_else = NULL;
-	level = 0;
-	for (t = t_then; t && (level || !(t->type == JBAS_TOKEN_KEYWORD && t->keyword_token.id == JBAS_KW_ELSE)); t = t->r)
-	{
-		level += t->type == JBAS_TOKEN_KEYWORD && t->keyword_token.id == JBAS_KW_IF;
-		level -= t->type == JBAS_TOKEN_KEYWORD && t->keyword_token.id == JBAS_KW_ENDIF;
-	}
-	t_endif = t;
+		// Break if the condition is not true
+		if (!cond_true) break;
 
-	// Look for ENDIF
-	jbas_token *t_endif;
-	level = 0;
-	for (t = t_else ? t_else : t_then; t && (level || !(t->type == JBAS_TOKEN_KEYWORD && t->keyword_token.id == JBAS_KW_ENDIF)); t = t->r)
-	{
-		level += t->type == JBAS_TOKEN_KEYWORD && t->keyword_token.id == JBAS_KW_IF;
-		level -= t->type == JBAS_TOKEN_KEYWORD && t->keyword_token.id == JBAS_KW_ENDIF;
-	}
-	t_endif = t;
-
-	if (!t_endif)
-	{
-		JBAS_ERROR_REASON(env, "ENDIF keyword missing!");
-		return JBAS_SYNTAX_ERROR;
+		// Run the loop
+		err = jbas_run_block(env, t_body->r, t_end, NULL);
+		if (err) return err;	
 	}
 
-	*next = t_endif->r;
-	*/
+	*next = t_end;
 	return JBAS_OK;
 }
 
@@ -145,8 +121,9 @@ const jbas_keyword jbas_keywords[JBAS_KEYWORD_COUNT] =
 	{ 0, "NOP",   JBAS_KW_NOP,   NULL, NULL},
 	{-1, "END",   JBAS_KW_END,   NULL, NULL},
 
-	{ 1, "IF",    JBAS_KW_IF,    jbas_kw_if, NULL},
-	{ 0, "ELSE",  JBAS_KW_ELSE,  NULL,       NULL},
+	{ 1, "WHILE", JBAS_KW_WHILE, jbas_kw_while, NULL},
+	{ 1, "IF",    JBAS_KW_IF,    jbas_kw_if,    NULL},
+	{ 0, "ELSE",  JBAS_KW_ELSE,  NULL,          NULL},
 
 	{ 0, "PRINT", JBAS_KW_PRINT, NULL,       NULL},
 };
