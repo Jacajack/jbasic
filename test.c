@@ -2,15 +2,18 @@
 #include <jbasic/debug.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-int main(void)
+int main(int argc, char *argv[])
 {
+	int debug = argc > 1 && !strcmp(argv[1], "debug");
+
 	jbas_env env;
 	jbas_env_init(&env, 10000, 1000, 1000, 1000);
 
 	// Read
-	char *line = NULL;
-	size_t len = 0;
+	size_t len = 10000;
+	char *line = malloc(len);
 	while (getline(&line, &len, stdin) > 0)
 	{
 		jbas_error err = jbas_tokenize_string(&env, line);
@@ -24,15 +27,21 @@ int main(void)
 	free(line);
 
 	// Debug dump
-	jbas_debug_dump_token_list(stderr, env.tokens);
-	printf("\n\n\n");
+	if (debug)
+	{
+		jbas_debug_dump_token_list(stderr, env.tokens);
+		printf("\n\n\n");
+	}
 
 	// Run
 	jbas_error err = jbas_run(&env);
 
 	// Symbol table dump
-	printf("\n\n\n");
-	jbas_debug_dump_symbol_table(stderr, &env);
+	if (debug)
+	{
+		printf("\n\n\n");
+		jbas_debug_dump_symbol_table(stderr, &env);
+	}
 
 	// Run error?
 	if (err)
