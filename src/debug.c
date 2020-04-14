@@ -9,14 +9,6 @@
 #define JBAS_COLOR_CYAN "\x1b[36m"
 #define JBAS_COLOR_RESET "\x1b[0m"
 
-const char *jbas_debug_keyword_str(jbas_keyword id)
-{
-	for (int i = 0; i < JBAS_KEYWORD_COUNT; i++)
-		if (jbas_keywords[i].id == id)
-			return jbas_keywords[i].name;
-	return NULL;
-}
-
 /**
 	Dumps token to stderr
 */
@@ -33,7 +25,7 @@ void jbas_debug_dump_token(FILE *f, jbas_token *token)
 	switch (token->type)
 	{
 		case JBAS_TOKEN_KEYWORD:
-			fprintf(f, JBAS_COLOR_BLUE "%s" JBAS_COLOR_RESET, jbas_debug_keyword_str(token->keyword_token.id));
+			fprintf(f, JBAS_COLOR_BLUE "%s" JBAS_COLOR_RESET, token->keyword_token.kw->str);
 			break;
 
 		case JBAS_TOKEN_STRING:

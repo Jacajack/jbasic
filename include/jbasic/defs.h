@@ -6,6 +6,7 @@ typedef enum jbas_error
 	JBAS_OK = 0,
 	JBAS_SYNTAX_UNMATCHED_QUOTE,
 	JBAS_SYNTAX_ERROR,
+	JBAS_MISSING_END,
 	JBAS_PRINT_BAD_ARGUMENT,
 	JBAS_EMPTY_TOKEN,
 	JBAS_TOKEN_POOL_EMPTY,
@@ -31,32 +32,12 @@ typedef enum jbas_error
 } jbas_error;
 
 
-typedef enum jbas_keyword
-{
-	JBAS_KW_PRINT,
-	JBAS_KW_IF,
-	JBAS_KW_THEN,
-	JBAS_KW_ENDIF
-} jbas_keyword;
+typedef int jbas_int;
+typedef float jbas_float;
 
 
 // Env forward declaration
 typedef struct jbas_env jbas_env;
-
-static const struct {const char *name; jbas_keyword id;} jbas_keywords[] = 
-{
-	{"PRINT", JBAS_KW_PRINT},
-	{"IF", JBAS_KW_IF},
-	{"ENDIF", JBAS_KW_ENDIF},
-	{"THEN", JBAS_KW_THEN},
-};
-#define JBAS_KEYWORD_COUNT ((sizeof(jbas_keywords)) / (sizeof(jbas_keywords[0])))
-
-
-
-
-typedef int jbas_int;
-typedef float jbas_float;
 
 
 #ifdef JBAS_ERROR_REASONS
@@ -66,3 +47,7 @@ typedef float jbas_float;
 #endif
 
 #endif
+
+/*
+	Hej, przepraszam, że tak późno, ale chciałem Ci życzyć wszystkiego najlepszego z okazji urodzin.
+*/

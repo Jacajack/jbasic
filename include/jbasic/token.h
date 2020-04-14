@@ -19,6 +19,7 @@ typedef enum
 
 typedef struct jbas_symbol jbas_symbol;
 typedef struct jbas_operator jbas_operator;
+typedef struct jbas_keyword jbas_keyword;
 typedef struct jbas_token jbas_token;
 
 typedef struct
@@ -34,7 +35,7 @@ typedef struct
 
 typedef struct
 {
-	jbas_keyword id;
+	const jbas_keyword *kw;
 } jbas_keyword_token;
 
 typedef struct

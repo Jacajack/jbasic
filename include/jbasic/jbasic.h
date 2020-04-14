@@ -19,6 +19,7 @@ extern "C" {
 #include <jbasic/text.h>
 #include <jbasic/resource.h>
 #include <jbasic/symbol.h>
+#include <jbasic/kw.h>
 
 
 /**
@@ -41,8 +42,10 @@ int jbas_is_name_char(char c);
 jbas_error jbas_print(const jbas_token *token, int count);
 
 jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end, jbas_token **result);
-jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *const token);
-jbas_error jbas_run_tokens(jbas_env *env);
+jbas_error jbas_eval_instruction(jbas_env *env, jbas_token *begin, jbas_token **next, jbas_token **result);
+jbas_error jbas_run_step(jbas_env *env, jbas_token *begin, jbas_token **next);
+jbas_error jbas_run_block(jbas_env *env, jbas_token *begin, jbas_token *end, jbas_token **next);
+jbas_error jbas_run(jbas_env *env);
 jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **next, jbas_token *token);
 jbas_error jbas_tokenize_string(jbas_env *env, const char *str);
 jbas_error jbas_env_init(jbas_env *env, int token_count, int text_count, int symbol_count, int resource_count);

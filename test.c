@@ -1,5 +1,3 @@
-// #define JBASIC_DEBUG
-#define JBASIC_IMPLEMENTATION
 #include <jbasic/jbasic.h>
 #include <jbasic/debug.h>
 
@@ -15,9 +13,15 @@ int main(void)
 	//"TEST = 1 OR ( 7 * 1 + 1 )\n"
 	// "DUPA = 77\n"
 	//"14 + foo(7 + 1, 2 * 3) \n"
-	"A = 7\n"
+	"IF 0\n"
+	"if_ok = 1\n"
+	"ELSE\n"
+	"else_ok = 1\n"
+	"END\n"
+
+	"A=7\n"
 	"ORNONTOWICE = 0\n"
-	"B = -------(A*2)\n"
+	"B=-------(A*2)\n"
 	// "B = 0 OR (A = 1)\n"
 	// "B = 1 OR (C = 1)\n"
 	// "B = 1 - - 7 * ( A =  - - - - 2 + - 3 )\n"
@@ -46,18 +50,12 @@ int main(void)
 
 	printf("\n\n\n");
 
-	// Symbol table dump
-	//for (int i = 0; i < env.symbol_manager.max_count; i++)
-	//	if (env.symbol_manager.is_used[i])
-	//		printf("\t- %s\n", env.symbol_manager.symbol_storage[i].name->str);
-
 
 	// Run
-	err = jbas_run_tokens(&env);
+	err = jbas_run(&env);
 
 	printf("\n\n\n");
 	fprintf(stderr, "run error %d: %s\n", err, env.error_reason);
-
 
 
 	jbas_debug_dump_symbol_table(stderr, &env);

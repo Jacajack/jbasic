@@ -1,6 +1,7 @@
 #include <jbasic/jbasic.h>
 #include <jbasic/paren.h>
 #include <jbasic/cast.h>
+#include <jbasic/kw.h>
 #include <jbasic/debug.h>
 
 
@@ -77,7 +78,9 @@ jbas_error jbas_print(const jbas_token *token, int count)
 
 
 /**
-	Evaluates expression (no keywords allowed)
+	Evaluates expression (keywords are not handled here)
+	The resulting tokens are returned through the `result` argument
+	\todo fix parser again.....
 */
 jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end, jbas_token **result)
 {
@@ -161,20 +164,25 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 
 
 /**
-	Executes one instruction - starting at the provided token and ending at matching delimiter
-	(; for normal instructions, ENDIF for IFs and so on...)
+	Evaluates instruction (up to a delimiter) and optionally returns the result
+	\warning The returned tokens have to be returned to the pool by the user.
 */
-jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *const token)
+jbas_error jbas_eval_instruction(jbas_env *env, jbas_token *begin, jbas_token **next, jbas_token **result)
 {
 	// Skip delimiters
-	jbas_token *begin_token = token;
-	while (begin_token && begin_token->type == JBAS_TOKEN_DELIMITER)
-		begin_token = begin_token->r;
+	while (begin && begin->type == JBAS_TOKEN_DELIMITER)
+		begin = begin->r;
+	
+	// Reached the end?
+	if (!begin)
+	{
+		*next = NULL;
+		return JBAS_OK;
+	}
 
-	// Create copy of the entire expression
-	//! \todo keyword delimiters
+	// Create copy of the entire instruction
 	jbas_token *t, *expr = NULL;
-	for (t = begin_token; t && t->type != JBAS_TOKEN_DELIMITER; t = t->r)
+	for (t = begin; t && t->type != JBAS_TOKEN_DELIMITER; t = t->r)
 	{
 		jbas_token *new_token = NULL;
 		jbas_error err = jbas_token_list_push_back_from_pool(expr, &env->token_pool, t, &new_token);
@@ -191,7 +199,7 @@ jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *co
 	fprintf(stderr, "\n");
 	#endif
 
-	jbas_error eval_err = jbas_eval(env, jbas_token_list_begin(expr), NULL, NULL);
+	jbas_error eval_err = jbas_eval(env, jbas_token_list_begin(expr), NULL, &expr);
 	
 	// DEBUG
 	#ifdef JBAS_DEBUG
@@ -202,24 +210,80 @@ jbas_error jbas_run_instruction(jbas_env *env, jbas_token **next, jbas_token *co
 	fprintf(stderr, "\n");
 	#endif
 
-	// Delete what's left
-	jbas_token_list_destroy(expr, &env->token_pool);
+	// Eval error
+	if (eval_err)
+	{
+		*result = NULL;
+		jbas_token_list_destroy(expr, &env->token_pool);
+		return eval_err;
+	}
+
+	// Either return or delete the result
+	if (result)
+		*result = jbas_token_list_begin(expr);
+	else
+		jbas_token_list_destroy(expr, &env->token_pool);
+
 	return JBAS_OK;
 }
 
 /**
-	Runs entire loaded program
+	Executes either an enitre block or a single instruction.
 */
-jbas_error jbas_run_tokens(jbas_env *env)
+jbas_error jbas_run_step(jbas_env *env, jbas_token *begin, jbas_token **next)
 {
-	jbas_token *token = jbas_token_list_begin(env->tokens);
-	while (token)
+	// Skip delimiters
+	while (begin && begin->type == JBAS_TOKEN_DELIMITER)
+		begin = begin->r;
+
+	// Check the token we're on
+	if (!begin)
 	{
-		jbas_error err = jbas_run_instruction(env, &token, token);
-		if (err) return err;
+		*next = NULL;
+		return JBAS_OK;
+	}
+
+	// Handle keywords
+	if (begin->type == JBAS_TOKEN_KEYWORD)
+	{
+		return jbas_eval_keyword(env, begin, next);
+	}
+	else
+	{
+		// Handle normal instruction and discard the result
+		return jbas_eval_instruction(env, begin, next, NULL);
 	}
 
 	return JBAS_OK;
+}
+
+/**
+	Runs program block
+*/
+jbas_error jbas_run_block(jbas_env *env, jbas_token *begin, jbas_token *end, jbas_token **next)
+{
+	// Create fake list end where we want the execution to halt
+	if (end && end->l) end->l->r = NULL;
+
+	// Run step by step
+	jbas_token *t;
+	jbas_error err = JBAS_OK;
+	for (t = begin; t; err = jbas_run_step(env, t, &t))
+		if (err) break;
+
+	// Restore list continuity
+	if (end && end->l) end->l->r = end;
+	if (next) *next = end;
+	return err;
+}
+
+
+/**
+	Runs entire loaded program
+*/
+jbas_error jbas_run(jbas_env *env)
+{
+	return jbas_run_block(env, jbas_token_list_begin(env->tokens), NULL, NULL);
 }
 
 /**
@@ -342,15 +406,12 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		}
 
 		// Keyword check
-		for (int i = 0; i < JBAS_KEYWORD_COUNT; i++)
+		const jbas_keyword *kw = jbas_get_keyword_by_str(s, name_end);
+		if (kw)
 		{
-			if (!jbas_namecmp(s, name_end, jbas_keywords[i].name, NULL))
-			{
-				// Found matching keyword
-				token->type = JBAS_TOKEN_KEYWORD;
-				token->keyword_token.id = jbas_keywords[i].id;
-				return JBAS_OK;
-			}
+			token->type = JBAS_TOKEN_KEYWORD;
+			token->keyword_token.kw = kw;
+			return JBAS_OK;
 		}
 
 		// Symbol
