@@ -1,69 +1,47 @@
 #include <jbasic/jbasic.h>
 #include <jbasic/debug.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 int main(void)
 {
 	jbas_env env;
 	jbas_env_init(&env, 10000, 1000, 1000, 1000);
 
-	const char *lines = 
-	// "A = 7 + 5 + 10\n"
-	// "A = 3 *  7 + 2 * -( 3.0 + (1 / - 1) )\n"
-	// "M = 3 * 7 = 1 - 2\n"
-	//"TEST = 1 OR ( 7 * 1 + 1 )\n"
-	// "DUPA = 77\n"
-	//"14 + foo(7 + 1, 2 * 3) \n"
-	"IF 0\n"
-	"if_ok = 1\n"
-	"ELSE\n"
-	"else_ok = 1\n"
-	"END\n"
+	// Read
+	char *line = NULL;
+	size_t len = 0;
+	while (getline(&line, &len, stdin) > 0)
+	{
+		jbas_error err = jbas_tokenize_string(&env, line);
+		if (err)
+		{
+			fprintf(stderr, "tokenize error %d: %s\n", err, env.error_reason);
+			jbas_env_destroy(&env);
+			exit(EXIT_FAILURE);
+		}
+	}
+	free(line);
 
-	"i = 4\n"
-	"while i\n"
-	"i = i - 1\n"
-	"end\n"
-
-	"A=7\n"
-	"ORNONTOWICE = 0\n"
-	"B=-------(A*2)\n"
-	// "B = 0 OR (A = 1)\n"
-	// "B = 1 OR (C = 1)\n"
-	// "B = 1 - - 7 * ( A =  - - - - 2 + - 3 )\n"
-	// "( 1 + 4 , 7, 3 ) , 33 * 6 , ( 2 , ( 4 , 5 / 1.1 ) ) \n"
-	// "C = 1 && 0.14\n"
-	//"Y = 2 + 3 * ( 7.0 / 5 + 4 ) + 3 * ( 21.7 * 55.23 - 3.127 / 12 )\n"
-	;
-	/*
-	"TEST_STR = 'this is a test string'; PRINT 'hehe'\n"
-	"A = 34\n"
-	"IF a > (b + 17) THEN\n"
-	"PRINT 'rawr'\n"
-	"ENDIF\n"
-	"PRINT `fus ro dah!`\n";
-	*/
-
-	jbas_error err;
-	err = jbas_tokenize_string(&env, lines);
-	fprintf(stderr, "tokenize error %d: %s\n", err, env.error_reason);
-
-	// printf("---------\n");
-
-	printf("\n\n\n");
-
+	// Debug dump
 	jbas_debug_dump_token_list(stderr, env.tokens);
-
 	printf("\n\n\n");
-
 
 	// Run
-	err = jbas_run(&env);
+	jbas_error err = jbas_run(&env);
 
+	// Symbol table dump
 	printf("\n\n\n");
-	fprintf(stderr, "run error %d: %s\n", err, env.error_reason);
-
-
 	jbas_debug_dump_symbol_table(stderr, &env);
 
+	// Run error?
+	if (err)
+	{
+		fprintf(stderr, "run error %d: %s\n", err, env.error_reason);
+		jbas_env_destroy(&env);
+		exit(EXIT_FAILURE);
+	}
+
 	jbas_env_destroy(&env);
+	return EXIT_SUCCESS;
 }
