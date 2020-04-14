@@ -1,6 +1,7 @@
 #include <jbasic/cast.h>
 #include <jbasic/jbasic.h>
 #include <jbasic/paren.h>
+#include <jbasic/resource.h>
 
 /**
 	Determines the proper numeric type for the result of a mathematical
@@ -66,4 +67,13 @@ jbas_error jbas_token_to_number_type(jbas_env *env, jbas_token *t, jbas_number_t
 	if (err) return err;
 	jbas_number_cast(&t->number_token, type);
 	return JBAS_OK;
+}
+
+/**
+	Determines whether the token can be casted to a number
+*/
+bool jbas_can_cast_to_number(jbas_token *t)
+{
+	return t->type == JBAS_TOKEN_NUMBER || 
+		(t->type == JBAS_TOKEN_SYMBOL && t->symbol_token.sym->resource && t->symbol_token.sym->resource->type == JBAS_RESOURCE_NUMBER);
 }

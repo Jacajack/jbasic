@@ -119,7 +119,7 @@ void jbas_symbol_destroy(jbas_symbol_manager *sm, jbas_symbol *sym)
 */
 bool jbas_is_scalar_symbol(jbas_token *t)
 {
-	if (t->type != JBAS_TOKEN_SYMBOL) return true;
+	if (t->type != JBAS_TOKEN_SYMBOL) return false;
 	else
 	{
 		jbas_resource *res = t->symbol_token.sym->resource;

@@ -187,11 +187,56 @@ static jbas_error jbas_op_or(jbas_env *env, jbas_token *a, jbas_token *b, jbas_t
 static jbas_error jbas_op_eq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	// For numbers
+	if (jbas_can_cast_to_number(a) && jbas_can_cast_to_number(b))
+	{
+		jbas_error err = jbas_binary_math_op(env, a, b, res);
+		if (err) return err;
+
+		if (res->number_token.type == JBAS_NUM_FLOAT) // Floats
+		{
+			res->number_token.type = JBAS_NUM_BOOL;
+			res->number_token.i = a->number_token.f == b->number_token.f;
+		}
+		else // Ints and bools
+		{
+			res->number_token.type = JBAS_NUM_BOOL;
+			res->number_token.i = a->number_token.i == b->number_token.i;
+		}
+	}
+	else
+	{
+		JBAS_ERROR_REASON(env, "attempted to compare (==) incomparable entities");
+		return JBAS_BAD_COMPARE;
+	}
+
 	return JBAS_OK;
 }
 
 static jbas_error jbas_op_less(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	// For numbers
+	if (jbas_can_cast_to_number(a) && jbas_can_cast_to_number(b))
+	{
+		jbas_error err = jbas_binary_math_op(env, a, b, res);
+		if (err) return err;
+
+		if (res->number_token.type == JBAS_NUM_FLOAT) // Floats
+		{
+			res->number_token.type = JBAS_NUM_BOOL;
+			res->number_token.i = a->number_token.f < b->number_token.f;
+		}
+		else // Ints and bools
+		{
+			res->number_token.type = JBAS_NUM_BOOL;
+			res->number_token.i = a->number_token.i < b->number_token.i;
+		}
+	}
+	else
+	{
+		JBAS_ERROR_REASON(env, "attempted to compare (<) incomparable entities");
+		return JBAS_BAD_COMPARE;
+	}
+
 	return JBAS_OK;
 }
 
@@ -320,6 +365,19 @@ static jbas_error jbas_op_mod(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 
 static jbas_error jbas_op_not(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	// Result type
+	res->type = JBAS_TOKEN_NUMBER;
+	res->number_token.type = JBAS_NUM_BOOL;
+
+	// Convert operands to bool
+	jbas_error err = jbas_token_to_number_type(env, b, JBAS_NUM_BOOL);
+	if (err)
+	{
+		JBAS_ERROR_REASON(env, "invalid NOT operand");
+		return err;
+	}
+
+	res->number_token.i = !b->number_token.i;
 	return JBAS_OK;
 }
 

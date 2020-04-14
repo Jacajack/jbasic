@@ -480,6 +480,14 @@ jbas_error jbas_tokenize_string(jbas_env *env, const char *str)
 			return err;
 	}
 
+	// Make sure there's a delimiter at the end
+	if (env->tokens->type != JBAS_TOKEN_DELIMITER)
+	{
+		jbas_token t = {.type = JBAS_TOKEN_DELIMITER};
+		jbas_error err = jbas_token_list_push_back_from_pool(env->tokens, &env->token_pool, &t, &env->tokens);
+		if (err) return err;
+	}
+
 	return JBAS_OK;
 }
 
