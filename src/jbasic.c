@@ -305,7 +305,16 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 	if (!*s)
 	{
 		*next = NULL;
-		return JBAS_EMPTY_TOKEN;
+		return JBAS_OK;
+	}
+
+	// Skip comments and treat them as delimiters
+	if (*s == '#')
+	{
+		while (*s && *s != '\n') s++;
+		*next = *s ? s + 1 : NULL;
+		token.type = JBAS_TOKEN_DELIMITER;
+		ok = true;
 	}
 
 	// If it's ';' or a newline, it's a delimiter
@@ -501,12 +510,8 @@ jbas_error jbas_tokenize_string(jbas_env *env, const char *str)
 	{
 		// Get a token from the line
 		jbas_error err = jbas_get_token(env, str, &str, paren, &level);
-
-		if (err)
-		{
-			if (err == JBAS_EMPTY_TOKEN) break;
-			else return err;
-		}
+		if (!str) break;
+		if (err) return err;
 
 		if (!level || level >= JBAS_TOKENIZE_PAREN_LEVELS)
 		{
