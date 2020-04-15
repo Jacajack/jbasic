@@ -169,7 +169,6 @@ jbas_error jbas_eval_scalar_symbol(jbas_env *env, jbas_token *t)
 			break;
 	}
 
-	jbas_token_copy(t, &res);
-	return JBAS_OK;
+	return jbas_token_move(t, &res, &env->token_pool);
 }
 

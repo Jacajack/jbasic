@@ -8,6 +8,7 @@ typedef enum jbas_error
 	JBAS_SYNTAX_ERROR,
 	JBAS_MISSING_END,
 	JBAS_PRINT_BAD_ARGUMENT,
+	JBAS_TOO_MANY_PAREN,
 	JBAS_EMPTY_TOKEN,
 	JBAS_TOKEN_POOL_EMPTY,
 	JBAS_TOKEN_POOL_OVERFLOW,
@@ -44,7 +45,7 @@ typedef struct jbas_env jbas_env;
 #ifdef JBAS_ERROR_REASONS
 	#define JBAS_ERROR_REASON(env, s) ((env)->error_reason = (__FILE__ ": " s)); 
 #else
-	#define JBAS_ERROR_REASON(env, s) (void);
+	#define JBAS_ERROR_REASON(env, s) (void)(env, s);
 #endif
 
 #endif

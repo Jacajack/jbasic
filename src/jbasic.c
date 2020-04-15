@@ -108,7 +108,7 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 		// Skip parenthesis and register parentheses
 		// Call operator has the highest priority so it must be next
 		// to a callable token straight away
-		if (t->type == JBAS_TOKEN_LPAREN)
+		if (t->type == JBAS_TOKEN_PAREN)
 		{
 			if (jbas_has_left_operand(t))
 			{
@@ -116,7 +116,7 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 				operators[opcnt].pos = opcnt;
 				opcnt++;
 			}
-			jbas_get_matching_paren(t, &t);
+			// jbas_get_matching_paren(t, &t);
 		}
 	}
 
@@ -180,14 +180,16 @@ jbas_error jbas_eval_instruction(jbas_env *env, jbas_token *begin, jbas_token **
 		return JBAS_OK;
 	}
 
-	// Create copy of the entire instruction
+	// Create a deep copy of the entire instruction
 	jbas_token *t, *expr = NULL;
 	for (t = begin; t && t->type != JBAS_TOKEN_DELIMITER; t = t->r)
 	{
-		jbas_token *new_token = NULL;
-		jbas_error err = jbas_token_list_push_back_from_pool(expr, &env->token_pool, t, &new_token);
+		jbas_error err;
+		jbas_token new_token = {.type = JBAS_TOKEN_DELIMITER};
+		err = jbas_token_copy(&new_token, t, &env->token_pool);
 		if (err) return err;
-		expr = new_token;
+		err = jbas_token_list_push_back_from_pool(expr, &env->token_pool, &new_token, &expr);
+		if (err) return err;
 	}
 	*next = t;
 
@@ -292,9 +294,11 @@ jbas_error jbas_run(jbas_env *env)
 
 	\todo split this function into more, each handling one type of tokens
 */
-jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **next, jbas_token *token)
+jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **next, jbas_token ***lists, int *level)
 {
 	const char *s = str;
+	bool ok = false;
+	jbas_token token;
 
 	// Skip preceding whitespace
 	while (*s && isspace(*s) && *s != '\n') s++;
@@ -305,33 +309,44 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 	}
 
 	// If it's ';' or a newline, it's a delimiter
-	if (*s == ';' || *s == '\n')
+	if (!ok && (*s == ';' || *s == '\n'))
 	{
 		*next = s + 1;
-		token->type = JBAS_TOKEN_DELIMITER;
-		return JBAS_OK;
+		token.type = JBAS_TOKEN_DELIMITER;
+		ok = true;
 	}
 
-	// Left parenthesis
-	if (*s == '(')
+	// Left parenthesis - return pointer to a new list
+	if (!ok && (*s == '('))
 	{
 		*next = s + 1;
-		token->type = JBAS_TOKEN_LPAREN;
-		token->paren_token.match = NULL;
-		return JBAS_OK;
+		token.type = JBAS_TOKEN_PAREN;
+		token.paren_token.tokens = NULL;
+
+		jbas_error err = jbas_token_list_push_back_from_pool(*(lists[*level - 1]),
+			&env->token_pool,
+			&token,
+			lists[*level - 1]);
+		
+		// Push new list onto the stack
+		lists[*level] = &(*(lists[*level -1]))->paren_token.tokens;
+		(*level)++;
+		return err;
 	}
 
 	// Right parenthesis
-	if (*s == ')')
+	if (!ok && (*s == ')'))
 	{
+		// Actually exit here
 		*next = s + 1;
-		token->type = JBAS_TOKEN_RPAREN;
-		token->paren_token.match = NULL;
+
+		// Stack pop
+		(*level)--;
 		return JBAS_OK;
 	}
 
 	// If the token starts with a number, it is a number
-	if (isdigit(*s))
+	if (!ok && isdigit(*s))
 	{
 		const char *num_end = s;
 		char is_int = 1;
@@ -353,19 +368,19 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		while (*num_end && isdigit(*num_end)) num_end++;
 
 		// TODO use custom interpreter
-		token->number_token.type = is_int ? JBAS_NUM_INT : JBAS_NUM_FLOAT;
+		token.number_token.type = is_int ? JBAS_NUM_INT : JBAS_NUM_FLOAT;
 		if (is_int)
-			sscanf(s, "%d", &token->number_token.i);
+			sscanf(s, "%d", &token.number_token.i);
 		else
-			sscanf(s, "%f", &token->number_token.f);
+			sscanf(s, "%f", &token.number_token.f);
 
 		*next = num_end;
-		token->type = JBAS_TOKEN_NUMBER;
-		return JBAS_OK;		
+		token.type = JBAS_TOKEN_NUMBER;
+		ok = true;	
 	}
 
 	// If the token starts with ', " or `, it is a string
-	if (*s == '\'' || *s == '\"' || *s == '`')
+	if (!ok && (*s == '\'' || *s == '\"' || *s == '`'))
 	{
 		const char delimiter = *s;
 		const char *str_end = s + 1;
@@ -378,19 +393,20 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		}
 
 		*next = str_end + 1;
-		token->type = JBAS_TOKEN_STRING;
+		token.type = JBAS_TOKEN_STRING;
 
 		jbas_error err = jbas_text_create(
 			&env->text_manager,
 			s + 1,
 			str_end,
-			&token->string_token.txt);
+			&token.string_token.txt);
+		if (err) return err;
 
-		return err;
+		ok = true;
 	}
 
 	// If the token starts with a letter, it must be treated as a keyword/operator/symbol name
-	if (jbas_is_name_char(*s))
+	if (!ok && (jbas_is_name_char(*s)))
 	{
 		const char *name_end = s;
 		while (jbas_is_name_char(*name_end)) name_end++;
@@ -400,55 +416,71 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		const jbas_operator *op = jbas_get_operator_by_str(s, name_end);
 		if (op)
 		{
-			token->type = JBAS_TOKEN_OPERATOR;
-			token->operator_token.op = op;
-			return JBAS_OK;
+			token.type = JBAS_TOKEN_OPERATOR;
+			token.operator_token.op = op;
+			ok = true;
 		}
 
 		// Keyword check
 		const jbas_keyword *kw = jbas_get_keyword_by_str(s, name_end);
-		if (kw)
+		if (!ok && kw)
 		{
-			token->type = JBAS_TOKEN_KEYWORD;
-			token->keyword_token.kw = kw;
-			return JBAS_OK;
+			token.type = JBAS_TOKEN_KEYWORD;
+			token.keyword_token.kw = kw;
+			ok = true;
 		}
 
-		// Symbol
-		token->type = JBAS_TOKEN_SYMBOL;	
-		jbas_symbol *sym;
-		jbas_error err;
+		if (!ok)
+		{
+			// Symbol
+			token.type = JBAS_TOKEN_SYMBOL;	
+			jbas_symbol *sym;
+			jbas_error err;
+			
+			err = jbas_symbol_create(env, &sym, s, name_end);
+			if (err == JBAS_OK || err == JBAS_SYMBOL_COLLISION)
+				token.symbol_token.sym = sym;
+			else
+				return err;
+
+			ok = true;
+		}
+	}
+
+	if (!ok)
+	{
+		// Max crunch operator
+		const char *match_end = NULL;
+		const jbas_operator *match_op = NULL;
+		for (const char *op_end = s + 1; *op_end && jbas_is_operator_char(*(op_end - 1)); op_end++)
+		{
+			const jbas_operator *op = jbas_get_operator_by_str(s, op_end);
+			if (op)
+			{
+				match_op = op;
+				match_end = op_end;
+			}
+		}
 		
-		err = jbas_symbol_create(env, &sym, s, name_end);
-		if (err == JBAS_OK || err == JBAS_SYMBOL_COLLISION)
-			token->symbol_token.sym = sym;
-		else
-			return err;
-
-		return JBAS_OK;
-	}
-
-	// Max crunch operator
-	const char *match_end = NULL;
-	const jbas_operator *match_op = NULL;
-	for (const char *op_end = s + 1; *op_end && jbas_is_operator_char(*(op_end - 1)); op_end++)
-	{
-		const jbas_operator *op = jbas_get_operator_by_str(s, op_end);
-		if (op)
+		// Found a valid operator
+		if (match_op)
 		{
-			match_op = op;
-			match_end = op_end;
+			token.type = JBAS_TOKEN_OPERATOR;
+			token.operator_token.op = match_op;
+			*next = match_end;
+			ok = true;
 		}
 	}
-	
-	// Found a valid operator
-	if (match_op)
+
+	// If we have a token
+	if (ok)
 	{
-		token->type = JBAS_TOKEN_OPERATOR;
-		token->operator_token.op = match_op;
-		*next = match_end;
-		return JBAS_OK;
-	} 
+		// Add the token to the list and update the list pointer
+		return jbas_token_list_push_back_from_pool(*(lists[*level - 1]),
+			&env->token_pool,
+			&token,
+			lists[*level - 1]);
+	}
 
 	// Bad token!
 	JBAS_ERROR_REASON(env, "bad syntax! could not tokenize!");
@@ -457,31 +489,35 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 
 
 /**
-	Performs line tokenization, parsing and executes it in the provided environment
+	Performs line tokenization
 */
 jbas_error jbas_tokenize_string(jbas_env *env, const char *str)
 {
+	jbas_token **paren[JBAS_TOKENIZE_PAREN_LEVELS];
+	paren[0] = &env->tokens;
+	int level = 1;
+
 	while (1)
 	{
 		// Get a token from the line
-		jbas_token t;
-		jbas_error err = jbas_get_token(env, str, &str, &t);
+		jbas_error err = jbas_get_token(env, str, &str, paren, &level);
 
-		if (!err) // Insert a valid token into the list
+		if (err)
 		{
-			jbas_token *new_token;
-			jbas_error err = jbas_token_list_push_back_from_pool(env->tokens, &env->token_pool, &t, &new_token);
-			env->tokens = new_token;
-			if (err) return err;
+			if (err == JBAS_EMPTY_TOKEN) break;
+			else return err;
 		}
-		else if (err == JBAS_EMPTY_TOKEN)
-			break;
-		else
-			return err;
+
+		if (!level || level >= JBAS_TOKENIZE_PAREN_LEVELS)
+		{
+			return JBAS_TOO_MANY_PAREN;
+		}
 	}
 
+	env->tokens = jbas_token_list_end(env->tokens);
+
 	// Make sure there's a delimiter at the end
-	if (env->tokens->type != JBAS_TOKEN_DELIMITER)
+	if (env->tokens && env->tokens->type != JBAS_TOKEN_DELIMITER)
 	{
 		jbas_token t = {.type = JBAS_TOKEN_DELIMITER};
 		jbas_error err = jbas_token_list_push_back_from_pool(env->tokens, &env->token_pool, &t, &env->tokens);

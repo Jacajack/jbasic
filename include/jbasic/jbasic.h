@@ -46,12 +46,13 @@ jbas_error jbas_eval_instruction(jbas_env *env, jbas_token *begin, jbas_token **
 jbas_error jbas_run_step(jbas_env *env, jbas_token *begin, jbas_token **next);
 jbas_error jbas_run_block(jbas_env *env, jbas_token *begin, jbas_token *end, jbas_token **next);
 jbas_error jbas_run(jbas_env *env);
-jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **next, jbas_token *token);
+jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **next, jbas_token ***lists, int *level);
 jbas_error jbas_tokenize_string(jbas_env *env, const char *str);
 jbas_error jbas_env_init(jbas_env *env, int token_count, int text_count, int symbol_count, int resource_count);
 void jbas_env_destroy(jbas_env *env);
 
 #define JBAS_MAX_EVAL_OPERATORS 64
+#define JBAS_TOKENIZE_PAREN_LEVELS 64
 
 #ifdef __cplusplus
 }

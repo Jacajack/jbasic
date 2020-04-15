@@ -9,8 +9,7 @@ typedef enum
  	JBAS_TOKEN_SYMBOL,
  	JBAS_TOKEN_KEYWORD,
  	JBAS_TOKEN_OPERATOR,
- 	JBAS_TOKEN_LPAREN,
- 	JBAS_TOKEN_RPAREN,
+ 	JBAS_TOKEN_PAREN,
  	JBAS_TOKEN_NUMBER,
 	JBAS_TOKEN_STRING,
 	JBAS_TOKEN_TUPLE,
@@ -20,6 +19,7 @@ typedef enum
 typedef struct jbas_symbol jbas_symbol;
 typedef struct jbas_operator jbas_operator;
 typedef struct jbas_keyword jbas_keyword;
+typedef struct jbas_paren jbas_paren;
 typedef struct jbas_token jbas_token;
 
 typedef struct
@@ -67,7 +67,7 @@ typedef struct
 
 typedef struct jbas_paren_token
 {
-	jbas_token *match;
+	jbas_token *tokens;
 } jbas_paren_token;
 
 /**
@@ -104,8 +104,9 @@ typedef struct
 	int unused_count;
 } jbas_token_pool;
 
-void jbas_token_copy(jbas_token *dest, jbas_token *src);
-void jbas_token_swap(jbas_token *dest, jbas_token *src);
+jbas_error jbas_token_move(jbas_token *dest, jbas_token *src, jbas_token_pool *pool);
+jbas_error jbas_token_copy(jbas_token *dest, jbas_token *src, jbas_token_pool *pool);
+jbas_error jbas_token_swap(jbas_token *dest, jbas_token *src, jbas_token_pool *pool);
 jbas_error jbas_token_pool_get(jbas_token_pool *pool, jbas_token **t);
 jbas_error jbas_token_pool_return(jbas_token_pool *pool, jbas_token *t);
 jbas_error jbas_token_pool_init(jbas_token_pool *pool, int size);
@@ -135,5 +136,6 @@ jbas_error jbas_token_list_push_back_from_pool(
 jbas_error jbas_token_list_return_handle_to_pool(jbas_token **list_handle, jbas_token_pool *pool);
 jbas_error jbas_token_list_return_to_pool(jbas_token *t, jbas_token_pool *pool);
 jbas_error jbas_token_list_destroy(jbas_token *list, jbas_token_pool *pool);
+jbas_error jbas_empty_token(jbas_token *t, jbas_token_pool *pool);
 
 #endif

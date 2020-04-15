@@ -1,17 +1,15 @@
 #include <jbasic/token.h>
 #include <stdlib.h>
 
-/**	
-	Copies token data.
-	For tuples it acts like moving.
-	Updates parentheses refs too.
+/**
+	Moves token data - the source token is invalidated
 */
-void jbas_token_copy(jbas_token *dest, jbas_token *src)
+jbas_error jbas_token_move(jbas_token *dest, jbas_token *src, jbas_token_pool *pool)
 {
 	jbas_token *l = dest->l, *r = dest->r;
-	*dest = *src;
-	dest->l = l;
-	dest->r = r;
+	jbas_token tmp;
+
+	tmp = *src;
 
 	// Invalidate source tuple
 	if (src->type == JBAS_TOKEN_TUPLE)
@@ -19,43 +17,83 @@ void jbas_token_copy(jbas_token *dest, jbas_token *src)
 		src->tuple_token.tokens = NULL;
 	}
 
-	// Update parentheses refs
-	if (src->type == JBAS_TOKEN_LPAREN || src->type == JBAS_TOKEN_RPAREN)
+	// Invalidate source prentheses
+	if (src->type == JBAS_TOKEN_PAREN)
 	{
-		jbas_token *match = dest->paren_token.match;
-		if (match) match->paren_token.match = dest;
-		src->paren_token.match = NULL;
+		src->paren_token.tokens = NULL;
 	}
+
+	// Empty destination token (the source token can be contained in dest token!!!)
+	jbas_error err = jbas_empty_token(dest, pool);
+	
+	*dest = tmp;
+	dest->l = l;
+	dest->r = r;
+
+	return err;
+}
+
+/**	
+	Copies token data - perfroms deep copy if necessary
+	For tuples it acts like moving.
+	Updates parentheses refs too.
+*/
+jbas_error jbas_token_copy(jbas_token *dest, jbas_token *src, jbas_token_pool *pool)
+{
+	jbas_token *l = dest->l, *r = dest->r;
+	jbas_error err;
+	jbas_token tmp;
+
+	tmp = *src;
+
+	// Copy source tuple
+	if (src->type == JBAS_TOKEN_TUPLE)
+	{
+		tmp.tuple_token.tokens = NULL;
+		for (jbas_token *t = jbas_token_list_begin(src->tuple_token.tokens); t; t = t->r)
+		{
+			err = jbas_token_list_push_back_from_pool(tmp.tuple_token.tokens, pool, t, &tmp.tuple_token.tokens);
+			if (err) return err;
+		}
+	}
+
+	// Copy source parentheses contents
+	if (src->type == JBAS_TOKEN_PAREN)
+	{
+		tmp.paren_token.tokens = NULL;
+		for (jbas_token *t = jbas_token_list_begin(src->paren_token.tokens); t; t = t->r)
+		{
+			err = jbas_token_list_push_back_from_pool(tmp.paren_token.tokens, pool, t, &tmp.paren_token.tokens);
+			if (err) return err;
+		}
+	}
+
+	// Empty destination token (the source token can be contained in dest token!!!)
+	err = jbas_empty_token(dest, pool);
+	if (err) return err;
+	
+	*dest = tmp;
+	dest->l = l;
+	dest->r = r;
+
+	
+	return JBAS_OK;
 }
 
 /**	
 	Swaps two tokens by doing pointer magic
 	This may actually be less efficient than copying...
 */
-void jbas_token_swap(jbas_token *a, jbas_token *b)
+jbas_error jbas_token_swap(jbas_token *a, jbas_token *b, jbas_token_pool *pool)
 {
-	jbas_token tmp;
-	jbas_token_copy(&tmp, a);
-	jbas_token_copy(a, b);
-	jbas_token_copy(b, &tmp);
-
-	/*
-	// A's and B's left pointers (avoid loops)
-	tmp = a->l;
-	a->l = b->l == a ? b : b->l;
-	b->l = tmp == b ? a : tmp;
-
-	// A's and B's right pointers (avoid loops)
-	tmp = a->r;
-	a->r = b->r == a ? b : b->r;
-	b->r = tmp == b ? a : tmp;
-
-	// External pointers
-	if (a->l) a->l->r = a;
-	if (a->r) a->r->l = a;
-	if (b->l) b->l->r = b;
-	if (b->r) b->r->l = b;
-	*/
+	jbas_token tmp = {.type = JBAS_TOKEN_DELIMITER};
+	jbas_error err = jbas_token_move(&tmp, a, pool);
+	if (err) return err;
+	err = jbas_token_move(a, b, pool);
+	if (err) return err;
+	err = jbas_token_move(b, &tmp, pool);
+	if (err) return err;
+	return JBAS_OK;
 }
 
 // -------------------------------------- TOKEN POOL
@@ -233,17 +271,37 @@ jbas_error jbas_token_list_return_handle_to_pool(jbas_token **list_handle, jbas_
 }
 
 /**
-	Removes a node from the linked list and moves it to the pool
-	\warning The provided pointer is invalidated
+	Empties a container token (parentheses, tuple) out
 */
-jbas_error jbas_token_list_return_to_pool(jbas_token *t, jbas_token_pool *pool)
+jbas_error jbas_empty_token(jbas_token *t, jbas_token_pool *pool)
 {
 	// Tuple tokens contain sub-lits
 	if (t->type == JBAS_TOKEN_TUPLE && t->tuple_token.tokens)
 	{
 		jbas_error err = jbas_token_list_destroy(t->tuple_token.tokens, pool);
+		t->tuple_token.tokens = NULL;
 		if (err) return err;
 	}
+
+	// Parentheses tokens contain sub-lits
+	if (t->type == JBAS_TOKEN_PAREN && t->paren_token.tokens)
+	{
+		jbas_error err = jbas_token_list_destroy(t->paren_token.tokens, pool);
+		t->paren_token.tokens = NULL;
+		if (err) return err;
+	}
+
+	return JBAS_OK;
+}
+
+/**
+	Removes a node from the linked list and moves it to the pool
+	\warning The provided pointer is invalidated
+*/
+jbas_error jbas_token_list_return_to_pool(jbas_token *t, jbas_token_pool *pool)
+{
+	jbas_error err = jbas_empty_token(t, pool);
+	if (err) return err;
 
 	if (t->l) t->l->r = t->r;
 	if (t->r) t->r->l = t->l;

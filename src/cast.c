@@ -39,7 +39,7 @@ void jbas_number_cast(jbas_number_token *n, jbas_number_type t)
 jbas_error jbas_token_to_number(jbas_env *env, jbas_token *t)
 {
 	if (t->type == JBAS_TOKEN_NUMBER) return JBAS_OK;
-	else if (t->type == JBAS_TOKEN_LPAREN || t->type == JBAS_TOKEN_RPAREN)
+	else if (t->type == JBAS_TOKEN_PAREN)
 	{
 		jbas_error err;
 		err = jbas_eval_paren(env, t);

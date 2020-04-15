@@ -45,8 +45,7 @@ static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jb
 
 	}
 
-	jbas_token_copy(res, b);
-	return JBAS_OK;
+	return jbas_token_move(res, b, &env->token_pool);
 }
 
 static jbas_error jbas_op_comma(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
@@ -69,9 +68,10 @@ static jbas_error jbas_op_comma(jbas_env *env, jbas_token *a, jbas_token *b, jba
 	if (a->type == JBAS_TOKEN_TUPLE && b->type != JBAS_TOKEN_TUPLE)
 	{
 		// Copy the tuple on the left side
-		jbas_token_copy(res, a);
-
 		jbas_error err;
+		err = jbas_token_move(res, a, &env->token_pool);
+		if (err) return err;
+
 		err = jbas_token_list_push_back_from_pool(res->tuple_token.tokens, &env->token_pool, b, &res->tuple_token.tokens);
 		if (err) return err;
 		return JBAS_OK;
@@ -81,9 +81,10 @@ static jbas_error jbas_op_comma(jbas_env *env, jbas_token *a, jbas_token *b, jba
 	if (a->type != JBAS_TOKEN_TUPLE && b->type == JBAS_TOKEN_TUPLE)
 	{
 		// Copy the tuple on the right side
-		jbas_token_copy(res, b);
-
 		jbas_error err;
+		err = jbas_token_move(res, b, &env->token_pool);
+		if (err) return err;
+
 		err = jbas_token_list_push_front_from_pool(res->tuple_token.tokens, &env->token_pool, a, NULL);
 		if (err) return err;
 		return JBAS_OK;
@@ -100,7 +101,8 @@ static jbas_error jbas_op_comma(jbas_env *env, jbas_token *a, jbas_token *b, jba
 		rb->l = le;
 
 		// Copy the tuple on the left
-		jbas_token_copy(res, a);
+		jbas_error err = jbas_token_move(res, a, &env->token_pool);
+		if (err) return err;
 
 		return JBAS_OK;
 	}
@@ -471,8 +473,7 @@ bool jbas_is_pure_operand(const jbas_token *t)
 	return t->type == JBAS_TOKEN_SYMBOL
 		|| t->type == JBAS_TOKEN_NUMBER
 		|| t->type == JBAS_TOKEN_STRING
-		|| t->type == JBAS_TOKEN_LPAREN
-		|| t->type == JBAS_TOKEN_RPAREN
+		|| t->type == JBAS_TOKEN_PAREN
 		|| t->type == JBAS_TOKEN_TUPLE;
 }
 
@@ -492,7 +493,7 @@ bool jbas_is_valid_operand(jbas_token *t)
 */
 bool jbas_has_left_operand(jbas_token *t)
 {
-	return jbas_is_valid_operand(t->l) && t->l->type != JBAS_TOKEN_LPAREN
+	return jbas_is_valid_operand(t->l) 
 		&& (t->l->type != JBAS_TOKEN_OPERATOR || t->l->operator_token.op->type == JBAS_OP_UNARY_POSTFIX);
 }
 
@@ -501,7 +502,7 @@ bool jbas_has_left_operand(jbas_token *t)
 */
 bool jbas_has_right_operand(jbas_token *t)
 {
-	return jbas_is_valid_operand(t->r) && t->r->type != JBAS_TOKEN_RPAREN
+	return jbas_is_valid_operand(t->r) 
 		&& (t->r->type != JBAS_TOKEN_OPERATOR || t->r->operator_token.op->type == JBAS_OP_UNARY_PREFIX);
 }
 
@@ -595,8 +596,8 @@ int jbas_operator_token_compare(const void *av, const void *bv)
 	int ap = ab->pos;
 	int bp = bb->pos;
 
-	if (at->type == JBAS_TOKEN_LPAREN) return -1;
-	else if (bt->type == JBAS_TOKEN_LPAREN) return 1;
+	if (at->type == JBAS_TOKEN_PAREN) return -1;
+	else if (bt->type == JBAS_TOKEN_PAREN) return 1;
 	else
 	{
 		const jbas_operator *aop = at->operator_token.op;

@@ -49,9 +49,10 @@ void jbas_debug_dump_token(FILE *f, jbas_token *token)
 			fprintf(f, ";\n");
 			break;
 
-		case JBAS_TOKEN_LPAREN:
-		case JBAS_TOKEN_RPAREN:
-			fprintf(f, JBAS_COLOR_CYAN "%c" JBAS_COLOR_RESET, token->type == JBAS_TOKEN_LPAREN ? '(' : ')');
+		case JBAS_TOKEN_PAREN:
+			fprintf(f, JBAS_COLOR_CYAN "(" JBAS_COLOR_RESET);
+			jbas_debug_dump_token_list(f, token->paren_token.tokens);
+			fprintf(f, JBAS_COLOR_CYAN " )" JBAS_COLOR_RESET);
 			break;
 
 		case JBAS_TOKEN_SYMBOL:
