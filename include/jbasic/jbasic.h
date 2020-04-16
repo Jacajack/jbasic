@@ -40,6 +40,8 @@ typedef struct jbas_env
 bool jbas_is_name_char(char c);
 int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *end2);
 
+int jbas_printf(jbas_env *env, const char *format, ...);
+
 jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token **result);
 jbas_error jbas_eval_instruction(jbas_env *env, jbas_token *begin, jbas_token **next, jbas_token **result);
 jbas_error jbas_run_step(jbas_env *env, jbas_token *begin, jbas_token **next);

@@ -44,6 +44,16 @@ int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *e
 }
 
 
+int jbas_printf(jbas_env *env, const char *format, ...)
+{
+	va_list ap;
+	va_start(ap, format);
+	int ret = vfprintf(stdout, format, ap);
+	va_end(ap);
+	return ret;
+}
+
+
 /**
 	Evaluates expression (keywords are not handled here)
 	The resulting tokens are returned through the `result` argument
@@ -267,13 +277,12 @@ jbas_error jbas_get_token(jbas_env *env, const char *const str, const char **nex
 		return JBAS_OK;
 	}
 
-	// Skip comments and treat them as delimiters
+	// Skip comments
 	if (*s == '#')
 	{
 		while (*s && *s != '\n') s++;
-		*next = *s ? s + 1 : NULL;
-		token.type = JBAS_TOKEN_DELIMITER;
-		ok = true;
+		*next = *s ? s : NULL;
+		return JBAS_OK;
 	}
 
 	// If it's ';' or a newline, it's a delimiter

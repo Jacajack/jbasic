@@ -58,6 +58,6 @@ void jbas_try_fallback_operator(jbas_token *t);
 void jbas_attach_unary_operators(jbas_token *operand);
 
 #define JBAS_MAX_OPERATOR_LEVEL 6
-#define JBAS_OPERATOR_COUNT 19
+#define JBAS_OPERATOR_COUNT 22
 
 #endif

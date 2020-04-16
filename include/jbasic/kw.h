@@ -36,7 +36,7 @@ typedef struct jbas_keyword
 
 extern const jbas_keyword jbas_keywords[];
 
-#define JBAS_KEYWORD_COUNT 6
+#define JBAS_KEYWORD_COUNT 5
 
 const jbas_keyword *jbas_get_keyword_by_str(const char *b, const char *e);
 

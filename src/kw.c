@@ -114,58 +114,6 @@ static jbas_error jbas_kw_while(jbas_env *env, jbas_token *begin, jbas_token **n
 	return JBAS_OK;
 }
 
-int jbas_printf(const char *format, ...)
-{
-	va_list ap;
-	va_start(ap, format);
-	int ret = vfprintf(stdout, format, ap);
-	va_end(ap);
-	return ret;
-}
-
-jbas_error jbas_print_token(jbas_token *t)
-{
-
-}
-
-static jbas_error jbas_kw_print(jbas_env *env, jbas_token *begin, jbas_token **next)
-{
-	jbas_error err;
-	jbas_token *t_next;
-	jbas_token *t_val;
-	err = jbas_eval_instruction(env, begin->r, &t_next, &t_val);
-	if (err) return err;
-
-	switch (t_val->type)
-	{
-		// Print a number
-		case JBAS_TOKEN_NUMBER:
-		{
-			jbas_number_token *n = &t_val->number_token;
-			if (n->type == JBAS_NUM_INT)
-				jbas_printf("%d", n->i);
-			else if (n->type == JBAS_NUM_BOOL)
-				jbas_printf("%s", n->i ? "TRUE" : "FALSE");
-			else
-				jbas_printf("%f", n->f);
-		}
-		break;
-
-		default:
-			jbas_printf("???");
-			break;
-	}
-
-	jbas_printf("\n");
-
-	// Destroy the result
-	jbas_token_list_destroy(t_val, &env->token_pool);
-
-	*next = t_next;
-	return JBAS_OK;
-}
-
-
 /**
 	The keyword table
 */
@@ -177,8 +125,6 @@ const jbas_keyword jbas_keywords[JBAS_KEYWORD_COUNT] =
 	{ 1, "WHILE", JBAS_KW_WHILE, jbas_kw_while, NULL},
 	{ 1, "IF",    JBAS_KW_IF,    jbas_kw_if,    NULL},
 	{ 0, "ELSE",  JBAS_KW_ELSE,  NULL,          NULL},
-
-	{ 0, "PRINT", JBAS_KW_PRINT, jbas_kw_print, NULL},
 };
 
 /**

@@ -158,7 +158,7 @@ static jbas_error jbas_op_and(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 	err = jbas_token_to_number_type(env, b, JBAS_NUM_BOOL);
 	if (err) return err;
 
-	res->number_token.i = b->number_token.i;
+	res->number_token.i = b->number_token.i != 0;
 	return JBAS_OK;
 }
 
@@ -182,7 +182,7 @@ static jbas_error jbas_op_or(jbas_env *env, jbas_token *a, jbas_token *b, jbas_t
 	err = jbas_token_to_number_type(env, b, JBAS_NUM_BOOL);
 	if (err) return err;
 
-	res->number_token.i = b->number_token.i;
+	res->number_token.i = b->number_token.i != 0;
 	return JBAS_OK;
 }
 
@@ -384,6 +384,43 @@ static jbas_error jbas_op_not(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 }
 
 
+static jbas_error jbas_op_print(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+{
+	switch (b->type)
+	{
+		// Print a number
+		case JBAS_TOKEN_NUMBER:
+		{
+			jbas_number_token *n = &b->number_token;
+			if (n->type == JBAS_NUM_INT)
+				jbas_printf(env, "%d", n->i);
+			else if (n->type == JBAS_NUM_BOOL)
+				jbas_printf(env, n->i ? "TRUE" : "FALSE");
+			else
+				jbas_printf(env, "%f", n->f);
+		}
+		break;
+
+		default:
+			jbas_printf(env, "???");
+			break;
+	}
+
+	return jbas_token_move(res, b, &env->token_pool);
+}
+
+static jbas_error jbas_op_println(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+{
+	jbas_error err = jbas_op_print(env, a, b, res);
+	jbas_printf(env, "\n");
+	return err;
+}
+
+static jbas_error jbas_op_input(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+{
+	return jbas_token_move(res, b, &env->token_pool);
+}
+
 // ---- END OF OPERATOR IMPLEMENTATIONS
 
 
@@ -425,8 +462,11 @@ const jbas_operator jbas_operators[JBAS_OPERATOR_COUNT] =
 	{.str = "%",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_mod},
 
 	// Unary prefix operators
-	{.str = "!",   .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_not},
-	{.str = "NOT", .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_not},
+	{.str = "!",       .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_not},
+	{.str = "NOT",     .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_not},
+	{.str = "PRINT",   .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_print},
+	{.str = "PRINTLN", .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_println},
+	{.str = "INPUT",   .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_input},
 };
 
 int jbas_is_operator_char(char c)

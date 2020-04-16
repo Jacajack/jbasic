@@ -91,11 +91,25 @@ void jbas_debug_dump_resource(FILE *f, jbas_resource *res)
 		return;
 	}
 
+	// Printing numbers
 	if (res->type == JBAS_RESOURCE_NUMBER)
 	{
-		if (res->number.type == JBAS_NUM_INT || res->number.type == JBAS_NUM_BOOL)
-			fprintf(f, "%d", res->number.i);
-		
+		const jbas_number_token *n = &res->number;
+		switch (n->type)
+		{
+			case JBAS_NUM_INT:
+				fprintf(f, "%d", n->i);
+				break;
+
+			case JBAS_NUM_BOOL:
+				fprintf(f, n->i ? "TRUE" : "FALSE");
+				break;
+
+			case JBAS_NUM_FLOAT:
+				fprintf(f, "%f", n->f);
+				break;
+
+		}
 		return;
 	}
 
