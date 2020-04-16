@@ -390,16 +390,21 @@ static jbas_error jbas_op_print(jbas_env *env, jbas_token *a, jbas_token *b, jba
 	{
 		// Print a number
 		case JBAS_TOKEN_NUMBER:
-		{
-			jbas_number_token *n = &b->number_token;
-			if (n->type == JBAS_NUM_INT)
-				jbas_printf(env, "%d", n->i);
-			else if (n->type == JBAS_NUM_BOOL)
-				jbas_printf(env, n->i ? "TRUE" : "FALSE");
-			else
-				jbas_printf(env, "%f", n->f);
-		}
-		break;
+			{
+				jbas_number_token *n = &b->number_token;
+				if (n->type == JBAS_NUM_INT)
+					jbas_printf(env, "%d", n->i);
+				else if (n->type == JBAS_NUM_BOOL)
+					jbas_printf(env, n->i ? "TRUE" : "FALSE");
+				else
+					jbas_printf(env, "%f", n->f);
+			}
+			break;
+
+		// Print a constant string
+		case JBAS_TOKEN_STRING:
+			jbas_printf(env, "%s", b->string_token.txt->str);
+			break;
 
 		default:
 			jbas_printf(env, "???");
