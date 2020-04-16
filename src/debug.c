@@ -91,29 +91,37 @@ void jbas_debug_dump_resource(FILE *f, jbas_resource *res)
 		return;
 	}
 
-	// Printing numbers
-	if (res->type == JBAS_RESOURCE_NUMBER)
+	switch (res->type)
 	{
-		const jbas_number_token *n = &res->number;
-		switch (n->type)
-		{
-			case JBAS_NUM_INT:
-				fprintf(f, "%d", n->i);
-				break;
+		case JBAS_RESOURCE_NUMBER:
+			{
+				const jbas_number_token *n = &res->number;
+				switch (n->type)
+				{
+					case JBAS_NUM_INT:
+						fprintf(f, "%d", n->i);
+						break;
 
-			case JBAS_NUM_BOOL:
-				fprintf(f, n->i ? "TRUE" : "FALSE");
-				break;
+					case JBAS_NUM_BOOL:
+						fprintf(f, n->i ? "TRUE" : "FALSE");
+						break;
 
-			case JBAS_NUM_FLOAT:
-				fprintf(f, "%f", n->f);
-				break;
+					case JBAS_NUM_FLOAT:
+						fprintf(f, "%f", n->f);
+						break;
 
-		}
-		return;
+				}
+			}
+			break;
+
+		case JBAS_RESOURCE_CFUN:
+			fprintf(f, "C function at %p", res->cfun);
+			break;
+
+		default:
+			fprintf(f, "???");
+			break;
 	}
-
-	fprintf(f, "???");
 }
 
 void jbas_debug_dump_symbol(FILE *f, jbas_symbol *sym)
