@@ -7,7 +7,7 @@
 
 // This is POSIX only <3
 #include <dlfcn.h>
-void *dl_load(jbas_env *env)
+void *dl_load(jbas_env *env, int debug)
 {
 	// Get library name
 	const char *libname = getenv("JBASLIB");
@@ -43,7 +43,7 @@ void *dl_load(jbas_env *env)
 		// Import all resources
 		for (int i = 0; i < *crescnt; i++)
 		{
-			fprintf(stderr, "importing %s...\n", cres[i].name);
+			if (debug) fprintf(stderr, "importing %s...\n", cres[i].name);
 
 			// Create/get symbol
 			jbas_symbol *sym = NULL;
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 	jbas_env_init(&env, 10000, 1000, 1000, 1000);
 
 	// Import C resources
-	void *handle = dl_load(&env);
+	void *handle = dl_load(&env, debug);
 
 	// Open file
 	FILE *f = fopen(argv[1], "rt");
