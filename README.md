@@ -8,7 +8,7 @@ Some facts about this project:
  - The code can be easily altered to transform JBasic code into portable precompiled binary code
  - Writing this thing in C++ would have saved me a lot of time (due to the amount of boilerplate code)
  - JBasic support tuples - I guess that's kinda nice
- - ~~~I don't even know if it fits into an AVR anymore...~~~ Almost certainly it doesn't. Even if it did, it's likey too bloated anyway (it uses floats) 
+ - ~~I don't even know if it fits into an AVR anymore...~~ Almost certainly it doesn't. Even if it did, it's likey too bloated anyway (it uses floats) 
 
 The state of thing:
  - [x] - if statements
