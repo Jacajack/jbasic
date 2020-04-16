@@ -288,10 +288,10 @@ static jbas_error jbas_op_add(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 	jbas_error err = jbas_binary_math_op(env, a, b, res);
 	if (err) return err;
 
-	if (res->number_token.type == JBAS_NUM_INT)
-		res->number_token.i = a->number_token.i + b->number_token.i;
-	else
+	if (res->number_token.type == JBAS_NUM_FLOAT)
 		res->number_token.f = a->number_token.f + b->number_token.f;
+	else
+		res->number_token.i = a->number_token.i + b->number_token.i;
 
 	return JBAS_OK;
 }
@@ -303,10 +303,10 @@ static jbas_error jbas_op_sub(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 		jbas_error err = jbas_binary_math_op(env, a, b, res);
 		if (err) return err;
 
-		if (res->number_token.type == JBAS_NUM_INT)
-			res->number_token.i = a->number_token.i - b->number_token.i;
-		else
+		if (res->number_token.type == JBAS_NUM_FLOAT)
 			res->number_token.f = a->number_token.f - b->number_token.f;	
+		else
+			res->number_token.i = a->number_token.i - b->number_token.i;
 	}
 	else if (!a && b) // Unary action
 	{
@@ -317,10 +317,10 @@ static jbas_error jbas_op_sub(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 		res->type = JBAS_TOKEN_NUMBER;
 		res->number_token.type = b->number_token.type;
 
-		if (b->number_token.type == JBAS_NUM_INT)
-			res->number_token.i = -b->number_token.i;
-		else
+		if (b->number_token.type == JBAS_NUM_FLOAT)
 			res->number_token.f = -b->number_token.f;
+		else
+			res->number_token.i = -b->number_token.i;
 	}
 
 	return JBAS_OK;
@@ -331,10 +331,10 @@ static jbas_error jbas_op_mul(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 	jbas_error err = jbas_binary_math_op(env, a, b, res);
 	if (err) return err;
 
-	if (res->number_token.type == JBAS_NUM_INT)
-		res->number_token.i = a->number_token.i * b->number_token.i;
-	else
+	if (res->number_token.type == JBAS_NUM_FLOAT)
 		res->number_token.f = a->number_token.f * b->number_token.f;
+	else
+		res->number_token.i = a->number_token.i * b->number_token.i;
 
 	return JBAS_OK;
 }
@@ -344,10 +344,10 @@ static jbas_error jbas_op_div(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 	jbas_error err = jbas_binary_math_op(env, a, b, res);
 	if (err) return err;
 
-	if (res->number_token.type == JBAS_NUM_INT)
-		res->number_token.i = a->number_token.i / b->number_token.i;
-	else
+	if (res->number_token.type == JBAS_NUM_FLOAT)
 		res->number_token.f = a->number_token.f / b->number_token.f;
+	else
+		res->number_token.i = a->number_token.i / b->number_token.i;
 
 	return JBAS_OK;
 }
@@ -357,10 +357,10 @@ static jbas_error jbas_op_mod(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 	jbas_error err = jbas_binary_math_op(env, a, b, res);
 	if (err) return err;
 
-	if (res->number_token.type == JBAS_NUM_INT)
-		res->number_token.i = a->number_token.i % b->number_token.i;
-	else
+	if (res->number_token.type == JBAS_NUM_FLOAT)
 		res->number_token.f = fmodf(a->number_token.f, b->number_token.f);
+	else
+		res->number_token.i = a->number_token.i % b->number_token.i;
 
 	return JBAS_OK;
 }
