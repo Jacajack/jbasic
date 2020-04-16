@@ -4,6 +4,14 @@
 #include <jbasic/kw.h>
 #include <jbasic/debug.h>
 
+/**
+	Returns true or false depending on whether the character
+	can be a part of program variable or sub
+*/
+bool jbas_is_name_char(char c)
+{
+	return isalpha(c) || (c == '_');
+}
 
 
 int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *end2)
@@ -37,66 +45,37 @@ int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *e
 
 
 /**
-	Returns true or false depending on whether the character
-	can be a part of program variable or sub
-*/
-int jbas_is_name_char(char c)
-{
-	return isalpha(c) || (c == '_');
-}
-
-
-
-jbas_error jbas_print(const jbas_token *token, int count)
-{
-	while (count--)
-	{
-		switch (token->type)
-		{
-			// Print a string
-			case JBAS_TOKEN_STRING:
-			{
-				const jbas_string_token *t = &token->string_token;
-				printf("%s", t->txt->str);
-			}
-			break;
-
-			default:
-				return JBAS_PRINT_BAD_ARGUMENT;
-				break;
-		}
-		
-		if (count) printf("\t");
-		token++;
-	}
-
-	printf("\n");
-	return JBAS_OK;
-}
-
-
-
-
-/**
 	Evaluates expression (keywords are not handled here)
 	The resulting tokens are returned through the `result` argument
-	\todo fix parser again.....
 */
 jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end, jbas_token **result)
 {
+	if (!begin)
+	{
+		if (result) *result = NULL;
+		return JBAS_OK;
+	}
+
 	jbas_operator_sort_bucket operators[JBAS_MAX_EVAL_OPERATORS];
 	size_t opcnt = 0;
 
-	// Find all operators (including opening parenthesis)
+	// Find all operands (includes operator fallback)
+	for (jbas_token *t = begin; t && t != end; t = t->r)
+	{
+		if (jbas_is_pure_operand(t))
+			jbas_attach_unary_operators(t);
+	}
+
+	// Find all binary operators
 	for (jbas_token *t = begin; t && t != end; t = t->r)
 	{
 		// Operators
-		if (t->type == JBAS_TOKEN_OPERATOR)
+		if (jbas_is_binary_operator(t))
 		{
 			// Overflow
 			if (opcnt == JBAS_MAX_EVAL_OPERATORS)
 			{
-				JBAS_ERROR_REASON(env, "too many opeartors in chunk passed to jbas_eval(). Try changing JBAS_MAX_EVAL_OPERATORS");
+				JBAS_ERROR_REASON(env, "too many binary opeartors in chunk passed to jbas_eval(). Try changing JBAS_MAX_EVAL_OPERATORS");
 				return JBAS_EVAL_OVERFLOW;
 			}
 
@@ -104,51 +83,33 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 			operators[opcnt].pos = opcnt;
 			opcnt++;
 		}
-
-		// Skip parenthesis and register parentheses
-		// Call operator has the highest priority so it must be next
-		// to a callable token straight away
-		if (t->type == JBAS_TOKEN_PAREN)
-		{
-			if (jbas_has_left_operand(t))
-			{
-				operators[opcnt].token = t;
-				operators[opcnt].pos = opcnt;
-				opcnt++;
-			}
-			// jbas_get_matching_paren(t, &t);
-		}
 	}
 
-	// Find operators that are actually unary - forward pass - postfix operators
-	for (int i = 0; i < opcnt; i++)
-		jbas_try_fallback_operator(operators[i].token, JBAS_OP_UNARY_POSTFIX);
-
-	// Find operators that are actually unary - backward pass - prefix operators
-	for (int i = opcnt - 1; i >= 0; i--)
-		jbas_try_fallback_operator(operators[i].token, JBAS_OP_UNARY_PREFIX);
-
-	// Sort the operators
+	// Sort the binary operators
 	qsort(operators, opcnt, sizeof(operators[0]), jbas_operator_token_compare);
+
+	// If there are no binary operators and the expression itself is only
+	// an operand, evaluate it anyway. This ensures that function calls
+	// are evaluated and prevents overly aggressive optimization
+	//! \todo fix infinite loop when this is uncommented
+	/*
+	if (!opcnt && jbas_is_operand(begin))
+	{
+		jbas_error err = jbas_eval_operand(env, begin);
+		if (err) return err;
+	}
+	*/
 
 	// Evaluate operators
 	for (int i = 0; i < opcnt; i++)
 	{
 		jbas_token *t = operators[i].token;
 
-		// Binary and unary operators
+		// Binary operators
 		if (t->type == JBAS_TOKEN_OPERATOR)
 		{
-			jbas_error err;
-			if (jbas_is_binary_operator(t)) err = jbas_eval_binary_operator(env, t);
-			else err = jbas_eval_unary_operator(env, t);
+			jbas_error err = jbas_eval_binary_operator(env, t);
 			if (err) return err;
-
-		}
-		else // Call operator (LPAREN)
-		{
-			jbas_error err = jbas_eval_call_operator(env, t->l, t);
-			if (err) return err;	
 		}
 
 		#ifdef JBAS_DEBUG
@@ -215,7 +176,7 @@ jbas_error jbas_eval_instruction(jbas_env *env, jbas_token *begin, jbas_token **
 	// Eval error
 	if (eval_err)
 	{
-		*result = NULL;
+		if (result) *result = NULL;
 		jbas_token_list_destroy(expr, &env->token_pool);
 		return eval_err;
 	}

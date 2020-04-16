@@ -465,7 +465,51 @@ bool jbas_is_unary_operator(jbas_token *t)
 }
 
 /**
-	Only symbols, numbers, strings, tuples and parenthesis are pure operands
+	Returns true if an operator can be on the left side of its operand
+*/
+bool jbas_can_be_prefix_operator(jbas_token *t)
+{
+	if (!t) return false;
+
+	if (t->type != JBAS_TOKEN_OPERATOR) return false;
+	const jbas_operator *op = t->operator_token.op;
+
+	// A prefix operator
+	if (op->type == JBAS_OP_UNARY_PREFIX) return true;
+
+	// A binary operator that has no left operand and can serve as prefix operator
+	return jbas_is_binary_operator(t) && !jbas_has_left_operand(t) &&
+		(op->fallback && op->fallback->type == JBAS_OP_UNARY_PREFIX);
+}
+
+/**
+	Returns true if an operator can be on the right side of its operand
+*/
+bool jbas_can_be_postfix_operator(jbas_token *t)
+{
+	if (!t) return false;
+
+	// A special case - the call operator
+	if (t->type == JBAS_TOKEN_PAREN && jbas_is_operand(t->l)) return true;
+
+	// Other operators
+	if (t->type != JBAS_TOKEN_OPERATOR) return false;
+	const jbas_operator *op = t->operator_token.op;
+
+	// A postfix operator
+	if (op->type == JBAS_OP_UNARY_POSTFIX) return true;
+
+	// A binary operator that has no right operand and can serve as postfix operator
+	return jbas_is_binary_operator(t) && !jbas_has_right_operand(t) &&
+		(op->fallback && op->fallback->type == JBAS_OP_UNARY_POSTFIX);
+}
+
+/**
+	Only symbols, numbers, strings, tuples and parenthesis are pure operands.
+
+	Prefix and suffix operators are not pure operands.
+	Parenthesis are pure operands only if they do not have any *valid*
+	operands on their left.
 */
 bool jbas_is_pure_operand(const jbas_token *t)
 {
@@ -473,14 +517,14 @@ bool jbas_is_pure_operand(const jbas_token *t)
 	return t->type == JBAS_TOKEN_SYMBOL
 		|| t->type == JBAS_TOKEN_NUMBER
 		|| t->type == JBAS_TOKEN_STRING
-		|| t->type == JBAS_TOKEN_PAREN
-		|| t->type == JBAS_TOKEN_TUPLE;
+		|| t->type == JBAS_TOKEN_TUPLE
+		|| (t->type == JBAS_TOKEN_PAREN && !jbas_is_operand(t->l));
 }
 
 /**
-	Valid operands are pure operands with optional prefix/postfix operators
+	Valid operands are pure operands with their prefix/postfix operators.
 */
-bool jbas_is_valid_operand(jbas_token *t)
+bool jbas_is_operand(jbas_token *t)
 {
 	if (!t) return false;
 	return jbas_is_pure_operand(t) || (t->type == JBAS_TOKEN_OPERATOR
@@ -493,7 +537,7 @@ bool jbas_is_valid_operand(jbas_token *t)
 */
 bool jbas_has_left_operand(jbas_token *t)
 {
-	return jbas_is_valid_operand(t->l) 
+	return jbas_is_operand(t->l) 
 		&& (t->l->type != JBAS_TOKEN_OPERATOR || t->l->operator_token.op->type == JBAS_OP_UNARY_POSTFIX);
 }
 
@@ -502,33 +546,127 @@ bool jbas_has_left_operand(jbas_token *t)
 */
 bool jbas_has_right_operand(jbas_token *t)
 {
-	return jbas_is_valid_operand(t->r) 
+	return jbas_is_operand(t->r) 
 		&& (t->r->type != JBAS_TOKEN_OPERATOR || t->r->operator_token.op->type == JBAS_OP_UNARY_PREFIX);
 }
 
 /**
-	Removes operand - one token or entire parentheses
+	Removes operand - token with all its prefix and postfix operators
 */
 jbas_error jbas_remove_operand(jbas_env *env, jbas_token *t)
 {
-	if (!t) return JBAS_OPERAND_MISSING;
-	if (jbas_is_paren(t)) return jbas_remove_entire_paren(env, t);
-	else return jbas_token_list_return_to_pool(t, &env->token_pool);
+	bool has_left = true, has_right = true;
+
+	// Move the t pointer to the actual operand
+	if (!jbas_is_pure_operand(t))
+	{
+		while (jbas_can_be_postfix_operator(t)) t = t->l;
+		while (jbas_can_be_prefix_operator(t)) t = t->r;
+		if (!jbas_is_pure_operand(t))
+		{
+			JBAS_ERROR_REASON(env, "could not find pure operand inside an operand (in remove)");
+			return JBAS_OK;
+		}
+	}
+
+	// Eval operators
+	while (has_left || has_right)
+	{
+		has_left = has_left && jbas_can_be_prefix_operator(t->l);
+		has_right = has_right && jbas_can_be_postfix_operator(t->r);
+
+		jbas_error err = JBAS_OK;
+		if (has_left) err = jbas_token_list_return_to_pool(t->l, &env->token_pool);
+		if (err) return err;
+		if (has_right) err = jbas_token_list_return_to_pool(t->r, &env->token_pool);
+		if (err) return err;
+	}
+
+	// Remove the token itself
+	return jbas_token_list_return_to_pool(t, &env->token_pool);
 }
 
 /**
-	Prepares and evaluates any unary operation
+	Evaluates all operators prefix and postfix attached to the operand.
+	Also evaluates parentheses.
+	\note The operand pointer is not invalidated
+*/
+jbas_error jbas_eval_operand(jbas_env *env, jbas_token *t)
+{
+	bool has_left = true, has_right = true;
+	int do_lr = 0;
+
+	// Move the t pointer to the actual operand
+	if (!jbas_is_pure_operand(t))
+	{
+		while (jbas_can_be_postfix_operator(t)) t = t->l;
+		while (jbas_can_be_prefix_operator(t)) t = t->r;
+		if (!jbas_is_pure_operand(t))
+		{
+			JBAS_ERROR_REASON(env, "could not find pure operand inside an operand (in eval)");
+			return JBAS_OK;
+		}
+	}
+
+	// Eval the parentheses first
+	if (t->type == JBAS_TOKEN_PAREN)
+	{
+		jbas_error err = jbas_eval_paren(env, t);
+		if (err) return err;
+	}
+
+	// Eval operators
+	while (1)
+	{
+		has_left = has_left && jbas_can_be_prefix_operator(t->l);
+		has_right = has_right && jbas_can_be_postfix_operator(t->r);
+		if (!has_left && !has_right) break;
+
+		// The call operator is always evaluated first
+		if (has_right && t->r->type == JBAS_TOKEN_PAREN)
+		{
+			jbas_error err = jbas_eval_call_operator(env, t, t->r);
+			if (err) return err;
+			continue;
+		}
+
+		// Do left or right?
+		do_lr = has_right - has_left;
+
+		// Both operators?
+		do_lr = do_lr ? do_lr : t->l->operator_token.op->level - t->r->operator_token.op->level;
+
+		// If they have the same precedence, do right one first
+		do_lr = do_lr ? do_lr : 1;
+
+		// Eval
+		jbas_error err = JBAS_OK;
+		if (do_lr > 0) err = jbas_eval_unary_operator(env, t->r);
+		if (do_lr < 0) err = jbas_eval_unary_operator(env, t->l);
+		if (err) return err;
+	}
+
+	return JBAS_OK;
+}
+
+/**
+	Prepares and evaluates any unary operation. Only handles pure operands
+	because the right order of evaluation is assured by jbas_eval_operand()
 */
 jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t)
 {
 	jbas_error err;
 	jbas_token *operand = t->operator_token.op->type == JBAS_OP_UNARY_PREFIX ? t->r : t->l;
-	if (!jbas_is_valid_operand(operand)) return JBAS_OPERAND_MISSING;
-	if (jbas_is_paren(operand)) jbas_eval_paren(env, operand);
-	err = t->operator_token.op->handler(env, operand == t->l ? t->l : NULL, operand == t->r ? t->r : NULL, t);
+	if (!jbas_is_pure_operand(operand)) return JBAS_OPERAND_MISSING;
+
+	// Replace the operand with result
+	err = t->operator_token.op->handler(env, operand == t->l ? t->l : NULL, operand == t->r ? t->r : NULL, operand);
 	if (err) return err;
-	err = jbas_remove_operand(env, t->r);
+
+	// Remove the operator
+	err = jbas_token_list_return_to_pool(t, &env->token_pool);
 	if (err) return err;
+
 	return JBAS_OK;
 }
 
@@ -539,18 +677,18 @@ jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
 {
 	if (jbas_has_left_operand(t) && jbas_has_right_operand(t))
 	{
-		// Evaluate parenthesis
-		if (t->operator_token.op->eval_args)
-		{
-			if (jbas_is_paren(t->l)) jbas_eval_paren(env, t->l);
-			if (jbas_is_paren(t->r)) jbas_eval_paren(env, t->r);
-		}
+		jbas_error err;
+		
+		// Evaluate operands
+		err = jbas_eval_operand(env, t->l);
+		if (err) return err;
+		err = jbas_eval_operand(env, t->r);
+		if (err) return err;
 
 		// Call the operator handler and have it replaced with operation result
 		t->operator_token.op->handler(env, t->l, t->r, t);
 
 		// Remove operands
-		jbas_error err;
 		err = jbas_remove_operand(env, t->l);
 		if (err) return err;
 		err = jbas_remove_operand(env, t->r);
@@ -569,12 +707,8 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 	JBAS_ERROR_REASON(env, "object is not callable!");
 	return JBAS_BAD_CALL;
 
-	// Eval args parentheses
-	jbas_error err = jbas_eval_paren(env, args);
-	if (err) return err;
-
 	// Remove args after call
-	err = jbas_remove_operand(env, args);
+	jbas_error err = jbas_remove_operand(env, args);
 	if (err) return err;
 	return JBAS_OK;
 }
@@ -641,4 +775,19 @@ void jbas_try_fallback_operator(jbas_token *t, jbas_operator_type fallback_type)
 				break;
 			}
 	}
+}
+
+
+/**
+	Searches provided token's neighborhood for prefix and postfix operators.
+	All binary operators that can fall back to being unary are converted to
+	unary operators.
+*/
+void jbas_attach_unary_operators(jbas_token *operand)
+{
+	for (jbas_token *t = operand->r; jbas_can_be_postfix_operator(t); t = t->r)
+		jbas_try_fallback_operator(t, JBAS_OP_UNARY_POSTFIX);
+
+	for (jbas_token *t = operand->l; jbas_can_be_prefix_operator(t); t = t->l)
+		jbas_try_fallback_operator(t, JBAS_OP_UNARY_PREFIX);
 }

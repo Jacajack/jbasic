@@ -37,9 +37,8 @@ typedef struct jbas_env
 } jbas_env;
 
 
+bool jbas_is_name_char(char c);
 int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *end2);
-int jbas_is_name_char(char c);
-jbas_error jbas_print(const jbas_token *token, int count);
 
 jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end, jbas_token **result);
 jbas_error jbas_eval_instruction(jbas_env *env, jbas_token *begin, jbas_token **next, jbas_token **result);

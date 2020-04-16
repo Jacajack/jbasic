@@ -37,12 +37,17 @@ const jbas_operator *jbas_get_operator_by_str(const char *b, const char *e);
 
 bool jbas_is_binary_operator(jbas_token *t);
 bool jbas_is_unary_operator(jbas_token *t);
+bool jbas_can_be_postfix_operator(jbas_token *t);
+bool jbas_can_be_prefix_operator(jbas_token *t);
+
 
 bool jbas_is_pure_operand(const jbas_token *t);
-bool jbas_is_valid_operand(jbas_token *t);
+bool jbas_is_operand(jbas_token *t);
 bool jbas_has_left_operand(jbas_token *t);
 bool jbas_has_right_operand(jbas_token *t);
+
 jbas_error jbas_remove_operand(jbas_env *env, jbas_token *t);
+jbas_error jbas_eval_operand(jbas_env *env, jbas_token *t);
 
 jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t);
 jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t);
@@ -50,6 +55,7 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 
 int jbas_operator_token_compare(const void *av, const void *bv);
 void jbas_try_fallback_operator(jbas_token *t, jbas_operator_type fallback_type);
+void jbas_attach_unary_operators(jbas_token *operand);
 
 #define JBAS_MAX_OPERATOR_LEVEL 6
 #define JBAS_OPERATOR_COUNT 19
