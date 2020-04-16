@@ -595,7 +595,7 @@ bool jbas_is_pure_operand(const jbas_token *t)
 bool jbas_is_operand(const jbas_token *t)
 {
 	if (!t) return false;
-	return jbas_is_pure_operand(t) || (t->type == JBAS_TOKEN_OPERATOR
+	return jbas_is_pure_operand(t) || jbas_is_paren(t) || (t->type == JBAS_TOKEN_OPERATOR
 			&& (t->operator_token.op->type == JBAS_OP_UNARY_PREFIX
 			|| t->operator_token.op->type == JBAS_OP_UNARY_POSTFIX));
 }
