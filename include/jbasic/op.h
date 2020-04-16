@@ -47,7 +47,7 @@ bool jbas_has_left_operand(const jbas_token *t);
 bool jbas_has_right_operand(const jbas_token *t);
 
 jbas_error jbas_remove_operand(jbas_env *env, jbas_token *t);
-jbas_error jbas_eval_operand(jbas_env *env, jbas_token *t);
+jbas_error jbas_eval_operand(jbas_env *env, jbas_token *t, jbas_token **operand);
 
 jbas_error jbas_eval_unary_operator(jbas_env *env, jbas_token *t);
 jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t);

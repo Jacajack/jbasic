@@ -1,14 +1,9 @@
-TEST = 1 + (UGABUGA=1)
-LOGIC = 1 or (HAHA=1)
-
-a = not 17 + ( 2 + 3 * 4.1 ) * 2
-print a+0
 
 
 
-useless = 1
-()
-NOT NOT useless;
+#useless = 1
+#()
+#NOT NOT useless;
 #whatever = - NOT NOT useless
 #HAHA = 0
 #LOGIC = 1 or (HAHA=1)
@@ -25,3 +20,13 @@ NOT NOT useless;
 #	
 #	n = n + 1
 #end
+
+#TEST = 1 + NOT - - - - - - - (100)
+#LOGIC = 0 or -(HAHA=1)
+
+a = 0 and 1
+
+ASD = 17 + -( 2 + 3 * 4.1 ) * 2
+PRINTLN(asd)
+PRINTLN "Hello world!"
+print a

@@ -58,7 +58,7 @@ int jbas_printf(jbas_env *env, const char *format, ...)
 	Evaluates expression (keywords are not handled here)
 	The resulting tokens are returned through the `result` argument
 */
-jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token **result)
+jbas_error jbas_eval(jbas_env *env, jbas_token *begin, jbas_token **result)
 {
 	if (!begin)
 	{
@@ -103,7 +103,7 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token **result
 	// are evaluated and prevents overly aggressive optimization
 	if (!opcnt && jbas_is_operand(begin))
 	{
-		jbas_error err = jbas_eval_operand(env, begin);
+		jbas_error err = jbas_eval_operand(env, begin, &begin);
 		if (err) return err;
 	}
 	

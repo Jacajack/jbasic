@@ -1,4 +1,6 @@
 .vscode
 test
 jbasic
+jbi
 test.py
+libs/stdjbas.so

@@ -34,13 +34,23 @@ typedef enum jbas_error
 } jbas_error;
 
 
+
 typedef int jbas_int;
 typedef float jbas_float;
 
 
 // Env forward declaration
 typedef struct jbas_env jbas_env;
+typedef struct jbas_token jbas_token;
 
+typedef struct jbas_cres
+{
+	const char *name;
+	union
+	{
+		jbas_error (*cfun)(jbas_env *env, jbas_token *arg, jbas_token *res);
+	};
+} jbas_cres;
 
 #ifdef JBAS_ERROR_REASONS
 	#define JBAS_ERROR_REASON(env, s) ((env)->error_reason = (__FILE__ ": " s)); 

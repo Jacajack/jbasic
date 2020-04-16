@@ -659,7 +659,7 @@ jbas_error jbas_remove_operand(jbas_env *env, jbas_token *t)
 	Also evaluates parentheses.
 	\note The operand pointer is not invalidated
 */
-jbas_error jbas_eval_operand(jbas_env *env, jbas_token *t)
+jbas_error jbas_eval_operand(jbas_env *env, jbas_token *t, jbas_token **operand)
 {
 	bool has_left = true, has_right = true;
 	int do_lr = 0;
@@ -714,6 +714,8 @@ jbas_error jbas_eval_operand(jbas_env *env, jbas_token *t)
 		if (err) return err;
 	}
 
+	if (operand) *operand = t;
+
 	return JBAS_OK;
 }
 
@@ -748,9 +750,9 @@ jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
 		jbas_error err = JBAS_OK;
 		
 		// Evaluate operands
-		if (t->operator_token.op->eval_args) err = jbas_eval_operand(env, t->l);
+		if (t->operator_token.op->eval_args) err = jbas_eval_operand(env, t->l, NULL);
 		if (err) return err;
-		if (t->operator_token.op->eval_args) err = jbas_eval_operand(env, t->r);
+		if (t->operator_token.op->eval_args) err = jbas_eval_operand(env, t->r, NULL);
 		if (err) return err;
 
 		// Call the operator handler and get the result
@@ -784,6 +786,7 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 	if (err) return err;
 
 	// Only resources are callable
+	jbas_token ret;
 	if (fun->type == JBAS_TOKEN_RESOURCE)
 	{
 		jbas_resource *res = fun->resource_token.res;
@@ -792,8 +795,8 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 			// Call a C function
 			case JBAS_RESOURCE_CFUN:
 				{
-					jbas_error err = res->cfun(env, args, fun);
-					if (err) return err;
+					jbas_error err = res->cfun(env, args, &ret);
+					if (err) return err;		
 				}
 				break;
 
@@ -811,9 +814,14 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 		return JBAS_BAD_CALL;
 	}
 
-	// Remove args after call
-	err = jbas_remove_operand(env, args);
+	// Remove args
+	err = jbas_token_list_return_to_pool(args, &env->token_pool);
 	if (err) return err;
+
+	// Nicely replace the function symbol with the operation result
+	err = jbas_token_move(fun, &ret, &env->token_pool);
+	if (err) return err;
+
 	return JBAS_OK;
 }
 
