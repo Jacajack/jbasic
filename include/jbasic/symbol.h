@@ -33,7 +33,7 @@ jbas_error jbas_symbol_create(jbas_env *env, jbas_symbol **sym, const char *s, c
 jbas_error jbas_symbol_lookup(jbas_symbol_manager *sm, jbas_symbol **sym, const char *s, const char *end);
 void jbas_symbol_destroy(jbas_symbol_manager *sm, jbas_symbol *sym);
 
-bool jbas_is_scalar(jbas_token *t);
+bool jbas_is_scalar_symbol(jbas_token *t);
 jbas_error jbas_eval_scalar_symbol(jbas_env *env, jbas_token *t);
 
 #endif

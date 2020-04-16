@@ -388,6 +388,27 @@ static jbas_error jbas_op_print(jbas_env *env, jbas_token *a, jbas_token *b, jba
 {
 	switch (b->type)
 	{
+		// Eval symbol and try again
+		case JBAS_TOKEN_SYMBOL:
+			{
+				if (jbas_is_scalar_symbol(b))
+				{
+					jbas_error err = jbas_eval_scalar_symbol(env, b);
+					if (err)
+					{
+						if (err == JBAS_UNINITIALIZED_SYMBOL)
+							jbas_printf(env, "<NULL>");
+						else return err;
+					}
+					else return jbas_op_print(env, a, b, res);
+				}
+				else
+				{
+					jbas_printf(env, "<NONSCALAR>");
+				}
+			}
+			break;
+
 		// Print a number
 		case JBAS_TOKEN_NUMBER:
 			{
@@ -401,6 +422,7 @@ static jbas_error jbas_op_print(jbas_env *env, jbas_token *a, jbas_token *b, jba
 			}
 			break;
 
+	
 		// Print a constant string
 		case JBAS_TOKEN_STRING:
 			jbas_printf(env, "%s", b->string_token.txt->str);
