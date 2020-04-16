@@ -451,7 +451,7 @@ const jbas_operator *jbas_get_operator_by_str(const char *b, const char *e)
 /**
 	True if provided token is an binary operator
 */
-bool jbas_is_binary_operator(jbas_token *t)
+bool jbas_is_binary_operator(const jbas_token *t)
 {
 	return t && t->type == JBAS_TOKEN_OPERATOR && (t->operator_token.op->type == JBAS_OP_BINARY_LR || t->operator_token.op->type == JBAS_OP_BINARY_RL);  
 }
@@ -459,7 +459,7 @@ bool jbas_is_binary_operator(jbas_token *t)
 /**
 	True if provided token is an unary operator
 */
-bool jbas_is_unary_operator(jbas_token *t)
+bool jbas_is_unary_operator(const jbas_token *t)
 {
 	return t && t->type == JBAS_TOKEN_OPERATOR && (t->operator_token.op->type == JBAS_OP_UNARY_PREFIX || t->operator_token.op->type == JBAS_OP_UNARY_POSTFIX);  
 }
@@ -467,7 +467,7 @@ bool jbas_is_unary_operator(jbas_token *t)
 /**
 	Returns true if an operator can be on the left side of its operand
 */
-bool jbas_can_be_prefix_operator(jbas_token *t)
+bool jbas_can_be_prefix_operator(const jbas_token *t)
 {
 	if (!t) return false;
 
@@ -485,7 +485,7 @@ bool jbas_can_be_prefix_operator(jbas_token *t)
 /**
 	Returns true if an operator can be on the right side of its operand
 */
-bool jbas_can_be_postfix_operator(jbas_token *t)
+bool jbas_can_be_postfix_operator(const jbas_token *t)
 {
 	if (!t) return false;
 
@@ -518,13 +518,13 @@ bool jbas_is_pure_operand(const jbas_token *t)
 		|| t->type == JBAS_TOKEN_NUMBER
 		|| t->type == JBAS_TOKEN_STRING
 		|| t->type == JBAS_TOKEN_TUPLE
-		|| (t->type == JBAS_TOKEN_PAREN && !jbas_is_operand(t->l));
+		|| (t->type == JBAS_TOKEN_PAREN && !jbas_has_left_operand(t));
 }
 
 /**
 	Valid operands are pure operands with their prefix/postfix operators.
 */
-bool jbas_is_operand(jbas_token *t)
+bool jbas_is_operand(const jbas_token *t)
 {
 	if (!t) return false;
 	return jbas_is_pure_operand(t) || (t->type == JBAS_TOKEN_OPERATOR
@@ -535,7 +535,7 @@ bool jbas_is_operand(jbas_token *t)
 /**
 	Returns true if provided operator has left operand
 */
-bool jbas_has_left_operand(jbas_token *t)
+bool jbas_has_left_operand(const jbas_token *t)
 {
 	return jbas_is_operand(t->l) 
 		&& (t->l->type != JBAS_TOKEN_OPERATOR || t->l->operator_token.op->type == JBAS_OP_UNARY_POSTFIX);
@@ -544,7 +544,7 @@ bool jbas_has_left_operand(jbas_token *t)
 /**
 	Returns true if provided operator has right operand
 */
-bool jbas_has_right_operand(jbas_token *t)
+bool jbas_has_right_operand(const jbas_token *t)
 {
 	return jbas_is_operand(t->r) 
 		&& (t->r->type != JBAS_TOKEN_OPERATOR || t->r->operator_token.op->type == JBAS_OP_UNARY_PREFIX);
@@ -766,22 +766,17 @@ int jbas_operator_token_compare(const void *av, const void *bv)
 	Attempts to replace provided operator with any of its fallback opertors that would
 	fit the environment
 */
-void jbas_try_fallback_operator(jbas_token *t, jbas_operator_type fallback_type)
+void jbas_try_fallback_operator(jbas_token *t)
 {
 	if (t->type != JBAS_TOKEN_OPERATOR) return;
 	const jbas_operator *op = t->operator_token.op;
+	if (!op->fallback) return;
 
-	if ((fallback_type == JBAS_OP_UNARY_PREFIX && op->type != fallback_type && !jbas_has_left_operand(t) && jbas_has_right_operand(t))
-		|| (fallback_type == JBAS_OP_UNARY_POSTFIX && op->type != fallback_type && jbas_has_left_operand(t) && !jbas_has_right_operand(t)))
-	{
-		// Traverse fallback chain
-		for (; op; op = op->fallback)
-			if (op->type == fallback_type)
-			{
-				t->operator_token.op = op;
-				break;
-			}
-	}
+	if (op->fallback->type == JBAS_OP_UNARY_PREFIX && !jbas_has_left_operand(t) && jbas_has_right_operand(t))
+		t->operator_token.op = op->fallback;
+
+	if (op->fallback->type == JBAS_OP_UNARY_POSTFIX && jbas_has_left_operand(t) && !jbas_has_right_operand(t))
+		t->operator_token.op = op->fallback;
 }
 
 
@@ -793,8 +788,8 @@ void jbas_try_fallback_operator(jbas_token *t, jbas_operator_type fallback_type)
 void jbas_attach_unary_operators(jbas_token *operand)
 {
 	for (jbas_token *t = operand->r; jbas_can_be_postfix_operator(t); t = t->r)
-		jbas_try_fallback_operator(t, JBAS_OP_UNARY_POSTFIX);
+		jbas_try_fallback_operator(t);
 
 	for (jbas_token *t = operand->l; jbas_can_be_prefix_operator(t); t = t->l)
-		jbas_try_fallback_operator(t, JBAS_OP_UNARY_PREFIX);
+		jbas_try_fallback_operator(t);
 }
