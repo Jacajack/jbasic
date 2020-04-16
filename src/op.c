@@ -785,7 +785,11 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 	jbas_error err = jbas_symbol_to_resource(env, fun);
 	if (err) return err;
 
-	// Only resources are callable
+	// Eval arguments
+	err = jbas_eval_paren(env, args);
+	if (err) return err;
+
+	// Only resources and tuples are callable
 	jbas_token ret;
 	if (fun->type == JBAS_TOKEN_RESOURCE)
 	{
@@ -800,13 +804,40 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 				}
 				break;
 
-
 			default:
 				JBAS_ERROR_REASON(env, "resource is not callable");
 				return JBAS_BAD_CALL;
 				break;
 		}
 		
+	}
+	else if (fun->type == JBAS_TOKEN_TUPLE)
+	{
+		// Get index
+		err = jbas_token_to_number_type(env, args, JBAS_NUM_INT);
+		if (err)
+		{
+			JBAS_ERROR_REASON(env, "invalid tuple index (not a number?)");
+			return JBAS_BAD_INDEX;
+		}
+
+		int n = args->number_token.i;
+		if (n < 0)
+		{
+			JBAS_ERROR_REASON(env, "invalid tuple index (negative)");
+			return JBAS_BAD_INDEX;
+		}
+
+		jbas_token *t;
+		for (t = jbas_token_list_begin(fun->tuple_token.tokens); t && n; t = t->r, n--);
+		if (n || !t)
+		{
+			JBAS_ERROR_REASON(env, "invalid tuple index (out of range)");
+			return JBAS_BAD_INDEX;
+		}
+
+		err = jbas_token_move(&ret, t, &env->token_pool);
+		if (err) return err;
 	}
 	else
 	{
