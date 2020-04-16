@@ -13,6 +13,7 @@ typedef enum
  	JBAS_TOKEN_NUMBER,
 	JBAS_TOKEN_STRING,
 	JBAS_TOKEN_TUPLE,
+	JBAS_TOKEN_RESOURCE,
 	JBAS_TOKEN_DELIMITER,
 } jbas_token_type;
 
@@ -21,6 +22,7 @@ typedef struct jbas_operator jbas_operator;
 typedef struct jbas_keyword jbas_keyword;
 typedef struct jbas_paren jbas_paren;
 typedef struct jbas_token jbas_token;
+typedef struct jbas_resource jbas_resource;
 
 typedef struct
 {
@@ -70,6 +72,11 @@ typedef struct jbas_paren_token
 	jbas_token *tokens;
 } jbas_paren_token;
 
+typedef struct jbas_resource_token
+{
+	jbas_resource *res;
+} jbas_resource_token;
+
 /**
 	Polymorphic token
 */
@@ -85,6 +92,7 @@ typedef struct jbas_token
 		jbas_symbol_token symbol_token;
 		jbas_tuple_token tuple_token;
 		jbas_paren_token paren_token;
+		jbas_resource_token resource_token;
 	};
 
 	// For bidirectional linking

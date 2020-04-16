@@ -6,12 +6,12 @@
 #include <jbasic/resource.h>
 
 /**
-	Symbols are links between names in the code and resoruces
+	Symbols are links between names in the code and resoruces.
 */
 typedef struct jbas_symbol
 {
 	jbas_text *name;
-	jbas_resource *resource;
+	jbas_resource *res;
 } jbas_symbol;
 
 /*

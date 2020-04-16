@@ -42,7 +42,7 @@ jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm)
 */
 jbas_error jbas_resource_remove_ref(jbas_resource *res)
 {
-	if (res->ref_count) res->ref_count--;
+	if (res && res->ref_count) res->ref_count--;
 	return JBAS_OK;
 }
 
@@ -51,7 +51,7 @@ jbas_error jbas_resource_remove_ref(jbas_resource *res)
 */
 jbas_error jbas_resource_add_ref(jbas_resource *res)
 {
-	res->ref_count++;
+	if (res) res->ref_count++;
 	return JBAS_OK;
 }
 

@@ -19,18 +19,18 @@ static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jb
 	jbas_resource *dest;
 
 	// Decrement reference count on the resource currently kept in the dest. variable
-	if (asym->resource) jbas_resource_remove_ref(asym->resource);
+	if (asym->res) jbas_resource_remove_ref(asym->res);
 
 	// If there's no destination resource, create it
-	if (!asym->resource) jbas_resource_create(&env->resource_manager, &asym->resource);
-	dest = asym->resource;
+	if (!asym->res) jbas_resource_create(&env->resource_manager, &asym->res);
+	dest = asym->res;
 
 	
 	switch (b->type)
 	{
 		// If the source is a symbol, copy the resource and we're done
 		case JBAS_TOKEN_SYMBOL:
-			jbas_resource_copy(dest, b->symbol_token.sym->resource);
+			jbas_resource_copy(dest, b->symbol_token.sym->res);
 			break;
 
 		// Number assignment
@@ -585,6 +585,7 @@ bool jbas_is_pure_operand(const jbas_token *t)
 		|| t->type == JBAS_TOKEN_NUMBER
 		|| t->type == JBAS_TOKEN_STRING
 		|| t->type == JBAS_TOKEN_TUPLE
+		|| t->type == JBAS_TOKEN_RESOURCE
 		|| (t->type == JBAS_TOKEN_PAREN && !jbas_has_left_operand(t));
 }
 
@@ -778,11 +779,40 @@ jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
 */
 jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *args)
 {
-	JBAS_ERROR_REASON(env, "object is not callable!");
-	return JBAS_BAD_CALL;
+	// Extract symbol resource
+	jbas_error err = jbas_symbol_to_resource(env, fun);
+	if (err) return err;
+
+	// Only resources are callable
+	if (fun->type == JBAS_TOKEN_RESOURCE)
+	{
+		jbas_resource *res = fun->resource_token.res;
+		switch (res->type)
+		{
+			// Call a C function
+			case JBAS_RESOURCE_CFUN:
+				{
+					jbas_error err = res->cfun(env, args, fun);
+					if (err) return err;
+				}
+				break;
+
+
+			default:
+				JBAS_ERROR_REASON(env, "resource is not callable");
+				return JBAS_BAD_CALL;
+				break;
+		}
+		
+	}
+	else
+	{
+		JBAS_ERROR_REASON(env, "entity is not callable!");
+		return JBAS_BAD_CALL;
+	}
 
 	// Remove args after call
-	jbas_error err = jbas_remove_operand(env, args);
+	err = jbas_remove_operand(env, args);
 	if (err) return err;
 	return JBAS_OK;
 }

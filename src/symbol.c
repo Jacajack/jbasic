@@ -75,7 +75,7 @@ jbas_error jbas_symbol_create(jbas_env *env, jbas_symbol **sym, const char *s, c
 	sm->is_used[slot] = true;
 
 	sm->symbol_storage[slot].name = name_text;
-	sm->symbol_storage[slot].resource = NULL;
+	sm->symbol_storage[slot].res = NULL;
 	*sym = &sm->symbol_storage[slot];
 
 	return JBAS_OK;
@@ -122,7 +122,7 @@ bool jbas_is_scalar_symbol(jbas_token *t)
 	if (t->type != JBAS_TOKEN_SYMBOL) return false;
 	else
 	{
-		jbas_resource *res = t->symbol_token.sym->resource;
+		jbas_resource *res = t->symbol_token.sym->res;
 		if (!res) return true;
 
 		switch (res->type)
@@ -156,12 +156,12 @@ jbas_error jbas_eval_scalar_symbol(jbas_env *env, jbas_token *t)
 	jbas_symbol *sym = t->symbol_token.sym;
 	jbas_token res;
 
-	if (!sym->resource) return JBAS_UNINITIALIZED_SYMBOL;
-	switch (sym->resource->type)
+	if (!sym->res) return JBAS_UNINITIALIZED_SYMBOL;
+	switch (sym->res->type)
 	{
 		case JBAS_RESOURCE_NUMBER:
 			res.type = JBAS_TOKEN_NUMBER;
-			res.number_token = sym->resource->number;
+			res.number_token = sym->res->number;
 			break;
 
 		default:

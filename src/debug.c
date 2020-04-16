@@ -119,7 +119,7 @@ void jbas_debug_dump_resource(FILE *f, jbas_resource *res)
 void jbas_debug_dump_symbol(FILE *f, jbas_symbol *sym)
 {
 	fprintf(f, "`%s` = ", sym->name->str);
-	jbas_debug_dump_resource(f, sym->resource);
+	jbas_debug_dump_resource(f, sym->res);
 }
 
 void jbas_debug_dump_symbol_table(FILE *f, jbas_env *env)

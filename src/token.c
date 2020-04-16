@@ -1,4 +1,5 @@
 #include <jbasic/token.h>
+#include <jbasic/resource.h>
 #include <stdlib.h>
 
 /**
@@ -21,6 +22,12 @@ jbas_error jbas_token_move(jbas_token *dest, jbas_token *src, jbas_token_pool *p
 	if (src->type == JBAS_TOKEN_PAREN)
 	{
 		src->paren_token.tokens = NULL;
+	}
+
+	// Invalidate source's reference to the resource
+	if (src->type == JBAS_TOKEN_RESOURCE)
+	{
+		src->resource_token.res = NULL;
 	}
 
 	// Empty destination token (the source token can be contained in dest token!!!)
@@ -66,6 +73,12 @@ jbas_error jbas_token_copy(jbas_token *dest, jbas_token *src, jbas_token_pool *p
 			err = jbas_token_list_push_back_from_pool(tmp.paren_token.tokens, pool, t, &tmp.paren_token.tokens);
 			if (err) return err;
 		}
+	}
+
+	// Increase ref count when copying a resource token
+	if (src->type == JBAS_TOKEN_RESOURCE)
+	{
+		jbas_resource_add_ref(src->resource_token.res);
 	}
 
 	// Empty destination token (the source token can be contained in dest token!!!)
@@ -289,6 +302,12 @@ jbas_error jbas_empty_token(jbas_token *t, jbas_token_pool *pool)
 		jbas_error err = jbas_token_list_destroy(t->paren_token.tokens, pool);
 		t->paren_token.tokens = NULL;
 		if (err) return err;
+	}
+
+	// Resources have reference counting
+	if (t->type == JBAS_TOKEN_RESOURCE)
+	{
+		jbas_resource_remove_ref(t->resource_token.res);
 	}
 
 	return JBAS_OK;

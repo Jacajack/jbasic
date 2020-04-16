@@ -15,8 +15,13 @@ typedef enum jbas_resource_type
 	JBAS_RESOURCE_NUMBER,
 	JBAS_RESOURCE_INT_ARRAY,
 	JBAS_RESOURCE_FLOAT_ARRAY,
+	JBAS_RESOURCE_INT_PTR,
+	JBAS_RESOURCE_FLOAT_PTR,
 	JBAS_RESOURCE_STRING,
+	JBAS_RESOURCE_CFUN,
 } jbas_resource_type;
+
+typedef struct jbas_token jbas_token;
 
 typedef struct jbas_resource
 {
@@ -30,6 +35,9 @@ typedef struct jbas_resource
 	union
 	{
 		jbas_number_token number;
+		jbas_error (*cfun)(jbas_env *env, jbas_token *arg, jbas_token *res);
+		int *iptr;
+		float *fptr;
 		char *str;
 		void *data;
 	};
