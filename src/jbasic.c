@@ -48,7 +48,7 @@ int jbas_namecmp(const char *s1, const char *end1, const char *s2, const char *e
 	Evaluates expression (keywords are not handled here)
 	The resulting tokens are returned through the `result` argument
 */
-jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const end, jbas_token **result)
+jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token **result)
 {
 	if (!begin)
 	{
@@ -60,14 +60,14 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 	size_t opcnt = 0;
 
 	// Find all operands (includes operator fallback)
-	for (jbas_token *t = begin; t && t != end; t = t->r)
+	for (jbas_token *t = begin; t; t = t->r)
 	{
 		if (jbas_is_pure_operand(t))
 			jbas_attach_unary_operators(t);
 	}
 
 	// Find all binary operators
-	for (jbas_token *t = begin; t && t != end; t = t->r)
+	for (jbas_token *t = begin; t; t = t->r)
 	{
 		// Operators
 		if (jbas_is_binary_operator(t))
@@ -91,14 +91,12 @@ jbas_error jbas_eval(jbas_env *env, jbas_token *const begin, jbas_token *const e
 	// If there are no binary operators and the expression itself is only
 	// an operand, evaluate it anyway. This ensures that function calls
 	// are evaluated and prevents overly aggressive optimization
-	//! \todo fix infinite loop when this is uncommented
-	/*
 	if (!opcnt && jbas_is_operand(begin))
 	{
 		jbas_error err = jbas_eval_operand(env, begin);
 		if (err) return err;
 	}
-	*/
+	
 
 	// Evaluate operators
 	for (int i = 0; i < opcnt; i++)
@@ -162,7 +160,7 @@ jbas_error jbas_eval_instruction(jbas_env *env, jbas_token *begin, jbas_token **
 	fprintf(stderr, "\n");
 	#endif
 
-	jbas_error eval_err = jbas_eval(env, jbas_token_list_begin(expr), NULL, &expr);
+	jbas_error eval_err = jbas_eval(env, jbas_token_list_begin(expr), &expr);
 	
 	// DEBUG
 	#ifdef JBAS_DEBUG

@@ -158,7 +158,7 @@ static jbas_error jbas_op_and(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 	err = jbas_token_to_number_type(env, b, JBAS_NUM_BOOL);
 	if (err) return err;
 
-	res->number_token.i = a->number_token.i && b->number_token.i;
+	res->number_token.i = b->number_token.i;
 	return JBAS_OK;
 }
 
@@ -182,7 +182,7 @@ static jbas_error jbas_op_or(jbas_env *env, jbas_token *a, jbas_token *b, jbas_t
 	err = jbas_token_to_number_type(env, b, JBAS_NUM_BOOL);
 	if (err) return err;
 
-	res->number_token.i = a->number_token.i || b->number_token.i;
+	res->number_token.i = b->number_token.i;
 	return JBAS_OK;
 }
 
@@ -677,21 +677,28 @@ jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
 {
 	if (jbas_has_left_operand(t) && jbas_has_right_operand(t))
 	{
-		jbas_error err;
+		jbas_error err = JBAS_OK;
 		
 		// Evaluate operands
-		err = jbas_eval_operand(env, t->l);
+		if (t->operator_token.op->eval_args) err = jbas_eval_operand(env, t->l);
 		if (err) return err;
-		err = jbas_eval_operand(env, t->r);
+		if (t->operator_token.op->eval_args) err = jbas_eval_operand(env, t->r);
 		if (err) return err;
 
-		// Call the operator handler and have it replaced with operation result
-		t->operator_token.op->handler(env, t->l, t->r, t);
+		// Call the operator handler and get the result
+		jbas_token res;
+		err = t->operator_token.op->handler(env, t->l, t->r, &res);
+		if (err) return err;
 
-		// Remove operands
+		// Remove operands (before we replace the operator with
+		// resulting token that could potentially be a pure operand)
 		err = jbas_remove_operand(env, t->l);
 		if (err) return err;
 		err = jbas_remove_operand(env, t->r);
+		if (err) return err;
+
+		// Replace the operator with the result
+		err = jbas_token_move(t, &res, &env->token_pool);
 		if (err) return err;
 	}
 	else

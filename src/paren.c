@@ -27,9 +27,17 @@ jbas_error jbas_eval_paren(jbas_env *env, jbas_token *t)
 	if (!t || t->type != JBAS_TOKEN_PAREN) return JBAS_OK;
 
 	// Evaluate contents
-	err = jbas_eval(env, jbas_token_list_begin(t->paren_token.tokens), NULL, &res);
+	err = jbas_eval(env, jbas_token_list_begin(t->paren_token.tokens), &res);
 	if (err) return err;
 
-	// Move the result to replace the parentheses
-	return jbas_token_move(t, res, &env->token_pool);
+	// Replace the parentheses token with the result or a number 0 if there's no result 
+	// Ingenious workaround <3
+	if (res)
+	{
+		return jbas_token_move(t, res, &env->token_pool);
+	}
+	{
+		jbas_token zero = {.type = JBAS_TOKEN_NUMBER, .number_token = {.type = JBAS_NUM_INT, .i = 0}};
+		return jbas_token_copy(t, &zero, &env->token_pool);
+	}
 }
