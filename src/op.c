@@ -10,6 +10,21 @@
 
 static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	// Two tuples case
+	if (a->type == JBAS_TOKEN_TUPLE && b->type == JBAS_TOKEN_TUPLE)
+	{
+		jbas_token *t = jbas_token_list_begin(a->tuple_token.tokens);
+		jbas_token *u = jbas_token_list_begin(b->tuple_token.tokens);
+		for (; t && u; t = t->r, u = u->r)
+		{
+			jbas_error err = jbas_op_assign(env, t, u, NULL);
+			if (err) return err;
+		}
+
+		if (res) return jbas_token_move(res, b, &env->token_pool);
+		else return JBAS_OK;
+	}
+
 	if (a->type != JBAS_TOKEN_SYMBOL)
 	{
 		JBAS_ERROR_REASON(env, "cannot assign value to non-symbol token");
@@ -45,7 +60,8 @@ static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jb
 
 	}
 
-	return jbas_token_move(res, b, &env->token_pool);
+	if (res) return jbas_token_move(res, b, &env->token_pool);
+	else return JBAS_OK;
 }
 
 static jbas_error jbas_op_comma(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
