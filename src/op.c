@@ -760,6 +760,11 @@ jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
 		err = t->operator_token.op->handler(env, t->l, t->r, &res);
 		if (err) return err;
 
+		// Temporarily replace the operator with a delimiter
+		// Otherwise the operator can be treated as prefix operator
+		// and removed together with the right operand
+		t->type = JBAS_TOKEN_DELIMITER;
+
 		// Remove operands (before we replace the operator with
 		// resulting token that could potentially be a pure operand)
 		err = jbas_remove_operand(env, t->l);
@@ -767,7 +772,7 @@ jbas_error jbas_eval_binary_operator(jbas_env *env, jbas_token *t)
 		err = jbas_remove_operand(env, t->r);
 		if (err) return err;
 
-		// Replace the operator with the result
+		// Replace the operator (delimiter) with the result
 		err = jbas_token_move(t, &res, &env->token_pool);
 		if (err) return err;
 	}
@@ -846,6 +851,7 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 	}
 
 	// Remove args
+	// No need for tweaks, because we simply delete the token
 	err = jbas_token_list_return_to_pool(args, &env->token_pool);
 	if (err) return err;
 
