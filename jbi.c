@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 	}
 
 	jbas_env env;
-	jbas_env_init(&env, 10000, 1000, 1000, 1000);
+	jbas_env_init(&env, 10000, 10000, 10000, 10000);
 
 	// Import C resources
 	void *handle = dl_load(&env, debug);
