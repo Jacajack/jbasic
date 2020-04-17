@@ -159,7 +159,7 @@ static jbas_error jbas_kw_idim(jbas_env *env, jbas_token *begin, jbas_token **ne
 	jbas_resource *res = sym->res;
 	size_t size = begin->r->r->number_token.i;
 
-	// If the symbol hold some resource (that isn't an int array), drop it
+	// If the symbol holds some resource (that isn't an int array), drop it
 	if (res && res->type != JBAS_RESOURCE_INT_ARRAY)
 	{
 		jbas_resource_remove_ref(res);
@@ -169,7 +169,8 @@ static jbas_error jbas_kw_idim(jbas_env *env, jbas_token *begin, jbas_token **ne
 	// If the resource doesn't exit, create a new one
 	if (!res)
 	{
-		jbas_resource_create(&env->resource_manager, &res);
+		jbas_error err = jbas_resource_create(&env->resource_manager, &res);
+		if (err) return err;
 		sym->res = res;
 		res->type = JBAS_RESOURCE_INT_ARRAY;
 		res->iptr = NULL;
@@ -209,7 +210,8 @@ static jbas_error jbas_kw_fdim(jbas_env *env, jbas_token *begin, jbas_token **ne
 	// If the resource doesn't exit, create a new one
 	if (!res)
 	{
-		jbas_resource_create(&env->resource_manager, &res);
+		jbas_error err = jbas_resource_create(&env->resource_manager, &res);
+		if (err) return err;
 		sym->res = res;
 		res->type = JBAS_RESOURCE_FLOAT_ARRAY;
 		res->fptr = NULL;

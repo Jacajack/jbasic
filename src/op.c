@@ -22,6 +22,8 @@ static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jb
 			if (err) return err;
 
 			*ares->iptr = b->number_token.i;
+			res->type = JBAS_TOKEN_NUMBER;
+			res->number_token = b->number_token;
 			return JBAS_OK;
 		}
 
@@ -31,6 +33,8 @@ static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jb
 			if (err) return err;
 
 			*ares->fptr = b->number_token.f;
+			res->type = JBAS_TOKEN_NUMBER;
+			res->number_token = b->number_token;
 			return JBAS_OK;
 		}
 	}
@@ -882,6 +886,12 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 	if (fun->type == JBAS_TOKEN_RESOURCE)
 	{
 		jbas_resource *res = fun->resource_token.res;
+		if (!res)
+		{
+			JBAS_ERROR_REASON(env, "no resource to be called?");
+			return JBAS_BAD_CALL;
+		}
+
 		switch (res->type)
 		{
 			// Call a C function

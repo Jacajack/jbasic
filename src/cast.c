@@ -123,18 +123,19 @@ jbas_number_type jbas_number_type_promotion(jbas_number_type a, jbas_number_type
 void jbas_number_cast(jbas_number_token *n, jbas_number_type t)
 {
 	if (n->type == t) return;
-	n->type = t;
-	if (t == JBAS_NUM_INT)
+	if (t == JBAS_NUM_INT && n->type == JBAS_NUM_FLOAT)
 		n->i = n->f;
-	else if (t == JBAS_NUM_FLOAT)
+	else if (t == JBAS_NUM_FLOAT && (n->type == JBAS_NUM_INT || n->type == JBAS_NUM_BOOL))
 		n->f = n->i;
 	else if (t == JBAS_NUM_BOOL)
 	{
 		if (n->type == JBAS_NUM_FLOAT)
 			n->i = n->f != 0;
-		else
+		else if (n->type == JBAS_NUM_INT)
 			n->i = n->i != 0;
 	}
+
+	n->type = t;
 }
 
 /**
