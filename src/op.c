@@ -10,6 +10,31 @@
 
 static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	// Pointers
+	if (a->type == JBAS_TOKEN_RESOURCE)
+	{
+		jbas_resource *res = a->resource_token.res;
+		jbas_error err;
+
+		if (res->type == JBAS_RESOURCE_INT_PTR)
+		{
+			err = jbas_token_to_number_type(env, b, JBAS_NUM_INT);
+			if (err) return err;
+
+			*res->iptr = b->number_token.i;
+			return JBAS_OK;
+		}
+
+		if (res->type == JBAS_RESOURCE_FLOAT_PTR)
+		{
+			err = jbas_token_to_number_type(env, b, JBAS_NUM_FLOAT);
+			if (err) return err;
+
+			*res->fptr = b->number_token.f;
+			return JBAS_OK;
+		}
+	}
+
 	// Two tuples case
 	if (a->type == JBAS_TOKEN_TUPLE && b->type == JBAS_TOKEN_TUPLE)
 	{
@@ -27,7 +52,7 @@ static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jb
 
 	if (a->type != JBAS_TOKEN_SYMBOL)
 	{
-		JBAS_ERROR_REASON(env, "cannot assign value to non-symbol token");
+		JBAS_ERROR_REASON(env, "cannot assign value (not a pointer, not a tuple, not a symbol)");
 		return JBAS_BAD_ASSIGN;
 	}
 	jbas_symbol *asym = a->symbol_token.sym;
@@ -822,6 +847,50 @@ jbas_error jbas_eval_call_operator(jbas_env *env, jbas_token *fun, jbas_token *a
 				{
 					jbas_error err = res->cfun(env, args, &ret);
 					if (err) return err;		
+				}
+				break;
+
+			// Index an integer/float array
+			case JBAS_RESOURCE_INT_ARRAY:
+			case JBAS_RESOURCE_FLOAT_ARRAY:
+				{
+					// Get index
+					err = jbas_token_to_number_type(env, args, JBAS_NUM_INT);
+					if (err)
+					{
+						JBAS_ERROR_REASON(env, "invalid array index (not a number?)");
+						return JBAS_BAD_INDEX;
+					}
+
+					int n = args->number_token.i;
+					if (n < 0)
+					{
+						JBAS_ERROR_REASON(env, "invalid array index (negative)");
+						return JBAS_BAD_INDEX;
+					}
+					if (n >= res->size)
+					{
+						JBAS_ERROR_REASON(env, "invalid array index (out of bounds)");
+						return JBAS_BAD_INDEX;
+					}
+
+					// Create temporary pointer resource
+					jbas_resource *ptrres = NULL;
+					jbas_error err = jbas_resource_create(&env->resource_manager, &ptrres);
+					if (err) return err;
+
+					ret.type = JBAS_TOKEN_RESOURCE;
+					ret.resource_token.res = ptrres;
+					if (res->type  == JBAS_RESOURCE_INT_ARRAY)
+					{
+						ptrres->type = JBAS_RESOURCE_INT_PTR;
+						ptrres->iptr = res->iptr + n;
+					}
+					else
+					{
+						ptrres->type = JBAS_RESOURCE_FLOAT_PTR;
+						ptrres->fptr = res->fptr + n;
+					}
 				}
 				break;
 

@@ -114,6 +114,122 @@ static jbas_error jbas_kw_while(jbas_env *env, jbas_token *begin, jbas_token **n
 	return JBAS_OK;
 }
 
+static jbas_error jbas_kw_generic_dim(jbas_env *env, jbas_token *begin, jbas_token **next)
+{
+	jbas_token *t, *end;
+
+	// Look for a delimiter
+	for (t = begin; t && t->type != JBAS_TOKEN_DELIMITER; t = t->r);
+	*next = end = t;
+
+	// Next token must be a symbol
+	jbas_token *sym = begin->r;
+	if (!sym || sym->type != JBAS_TOKEN_SYMBOL)
+	{
+		JBAS_ERROR_REASON(env, "DIM requires symbol name");
+		return JBAS_BAD_DIM;
+	}
+
+	// Another one must be a dimension (or dimensions)
+	jbas_token *dim = sym->r;
+	if (!dim)
+	{
+		JBAS_ERROR_REASON(env, "DIM requires dimension(s)");
+		return JBAS_BAD_DIM;
+	}
+	
+	// Convert dimension to int
+	jbas_error err = jbas_token_to_number_type(env, dim, JBAS_NUM_INT);
+	if (err)
+	{
+		JBAS_ERROR_REASON(env, "DIM requires integer dimension(s)");
+		return JBAS_BAD_DIM;
+	}
+
+	return JBAS_OK;
+}
+
+static jbas_error jbas_kw_idim(jbas_env *env, jbas_token *begin, jbas_token **next)
+{
+	jbas_error err = jbas_kw_generic_dim(env, begin, next);
+	if (err) return err;
+
+	// The symbol and the new size
+	jbas_symbol *sym = begin->r->symbol_token.sym;
+	jbas_resource *res = sym->res;
+	size_t size = begin->r->r->number_token.i;
+
+	// If the symbol hold some resource (that isn't an int array), drop it
+	if (res && res->type != JBAS_RESOURCE_INT_ARRAY)
+	{
+		jbas_resource_remove_ref(res);
+		sym->res = res = NULL;
+	}
+
+	// If the resource doesn't exit, create a new one
+	if (!res)
+	{
+		jbas_resource_create(&env->resource_manager, &res);
+		sym->res = res;
+		res->type = JBAS_RESOURCE_INT_ARRAY;
+		res->iptr = NULL;
+		res->size = 0;
+	}
+
+	// Allocate/resize the resource buffer
+	int *arr = realloc(res->iptr, size * sizeof(int));
+	if (!arr)
+	{
+		JBAS_ERROR_REASON(env, "realloc() error in IDIM");
+		return JBAS_ALLOC;
+	}
+	res->iptr = arr;
+	res->size = size;
+
+	return JBAS_OK;
+}
+
+static jbas_error jbas_kw_fdim(jbas_env *env, jbas_token *begin, jbas_token **next)
+{
+	jbas_error err = jbas_kw_generic_dim(env, begin, next);
+	if (err) return err;
+
+	// The symbol and the new size
+	jbas_symbol *sym = begin->r->symbol_token.sym;
+	jbas_resource *res = sym->res;
+	size_t size = begin->r->r->number_token.i;
+
+	// If the symbol hold some resource (that isn't an int array), drop it
+	if (res && res->type != JBAS_RESOURCE_FLOAT_ARRAY)
+	{
+		jbas_resource_remove_ref(res);
+		sym->res = res = NULL;
+	}
+
+	// If the resource doesn't exit, create a new one
+	if (!res)
+	{
+		jbas_resource_create(&env->resource_manager, &res);
+		sym->res = res;
+		res->type = JBAS_RESOURCE_FLOAT_ARRAY;
+		res->fptr = NULL;
+		res->size = 0;
+	}
+
+	// Allocate/resize the resource buffer
+	float *arr = realloc(res->fptr, size * sizeof(float));
+	if (!arr)
+	{
+		JBAS_ERROR_REASON(env, "realloc() error in FDIM");
+		return JBAS_ALLOC;
+	}
+	res->fptr = arr;
+	res->size = size;
+
+	return JBAS_OK;
+}
+
+
 /**
 	The keyword table
 */
@@ -125,6 +241,10 @@ const jbas_keyword jbas_keywords[JBAS_KEYWORD_COUNT] =
 	{ 1, "WHILE", JBAS_KW_WHILE, jbas_kw_while, NULL},
 	{ 1, "IF",    JBAS_KW_IF,    jbas_kw_if,    NULL},
 	{ 0, "ELSE",  JBAS_KW_ELSE,  NULL,          NULL},
+
+	{ 0, "IDIM",   JBAS_KW_IDIM,   jbas_kw_idim,   NULL},
+	{ 0, "FDIM",   JBAS_KW_FDIM,   jbas_kw_fdim,   NULL},
+
 };
 
 /**

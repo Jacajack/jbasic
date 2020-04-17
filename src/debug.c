@@ -114,6 +114,14 @@ void jbas_debug_dump_resource(FILE *f, jbas_resource *res)
 			}
 			break;
 
+		case JBAS_RESOURCE_INT_ARRAY:
+			fprintf(f, "INT array of size %d", (int)res->size);
+			break;
+
+		case JBAS_RESOURCE_FLOAT_ARRAY:
+			fprintf(f, "FLOAT array of size %d", (int)res->size);
+			break;
+
 		case JBAS_RESOURCE_CFUN:
 			fprintf(f, "C function at %p", res->cfun);
 			break;

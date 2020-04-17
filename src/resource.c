@@ -83,7 +83,14 @@ void jbas_resource_delete(jbas_resource_manager *rm, jbas_resource *res)
 {
 	switch (res->type)
 	{
-		case JBAS_RESOURCE_NUMBER:
+		case JBAS_RESOURCE_INT_ARRAY:
+			free(res->iptr);
+			break;
+
+		case JBAS_RESOURCE_FLOAT_ARRAY:
+			free(res->fptr);
+			break;
+
 		default:
 			break;
 	}

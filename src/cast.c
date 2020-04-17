@@ -80,8 +80,27 @@ jbas_error jbas_to_value(jbas_env *env, jbas_token *t)
 				return jbas_to_value(env, t);
 			}
 
-			// Number pointer
-			//! \todo
+			// Int pointer
+			if (res->type == JBAS_RESOURCE_INT_PTR)
+			{
+				jbas_token nt = {.type = JBAS_TOKEN_NUMBER};
+				nt.number_token.type = JBAS_NUM_INT;
+				nt.number_token.i = *res->iptr;
+				jbas_error err = jbas_token_move(t, &nt, &env->token_pool);
+				if (err) return err;
+				return jbas_to_value(env, t);
+			}
+
+			// Float pointer
+			if (res->type == JBAS_RESOURCE_FLOAT_PTR)
+			{
+				jbas_token nt = {.type = JBAS_TOKEN_NUMBER};
+				nt.number_token.type = JBAS_NUM_FLOAT;
+				nt.number_token.f = *res->fptr;
+				jbas_error err = jbas_token_move(t, &nt, &env->token_pool);
+				if (err) return err;
+				return jbas_to_value(env, t);
+			}
 		}
 	}
 

@@ -18,6 +18,9 @@ typedef enum jbas_keyword_id
 	JBAS_KW_DO = JBAS_KW_NOP,
 	JBAS_KW_ENDWHILE = JBAS_KW_END,
 
+	JBAS_KW_IDIM,
+	JBAS_KW_FDIM,
+
 	// JBAS_KW_FOR,
 	// JBAS_KW_
 	// JBAS_KW_ENDFOR = JBAS_KW_END,
@@ -36,7 +39,7 @@ typedef struct jbas_keyword
 
 extern const jbas_keyword jbas_keywords[];
 
-#define JBAS_KEYWORD_COUNT 5
+#define JBAS_KEYWORD_COUNT 7
 
 const jbas_keyword *jbas_get_keyword_by_str(const char *b, const char *e);
 
