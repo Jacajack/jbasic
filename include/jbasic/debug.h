@@ -12,5 +12,6 @@ void jbas_debug_dump_token_list(FILE *f, jbas_token *t);
 void jbas_debug_dump_resource(FILE *f, jbas_resource *res);
 void jbas_debug_dump_symbol(FILE *f, jbas_symbol *sym);
 void jbas_debug_dump_symbol_table(FILE *f, jbas_env *env);
+void jbas_debug_dump_resource_manager(FILE *f, jbas_resource_manager *rm);
 
 #endif

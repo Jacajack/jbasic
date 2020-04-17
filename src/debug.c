@@ -56,7 +56,9 @@ void jbas_debug_dump_token(FILE *f, jbas_token *token)
 			break;
 
 		case JBAS_TOKEN_SYMBOL:
-			fprintf(f, JBAS_COLOR_RESET "%s" JBAS_COLOR_RESET, token->symbol_token.sym->name->str);
+			fprintf(f, JBAS_COLOR_RESET "%s" JBAS_COLOR_RESET "{", token->symbol_token.sym->name->str);
+			jbas_debug_dump_resource(f, token->symbol_token.sym->res);
+			fprintf(f, "}");
 			break;
 
 		case JBAS_TOKEN_TUPLE:
@@ -115,11 +117,19 @@ void jbas_debug_dump_resource(FILE *f, jbas_resource *res)
 			break;
 
 		case JBAS_RESOURCE_INT_ARRAY:
-			fprintf(f, "INT array of size %d", (int)res->size);
+			fprintf(f, "INT array of size %d at %p", (int)res->size, res->iptr);
 			break;
 
 		case JBAS_RESOURCE_FLOAT_ARRAY:
-			fprintf(f, "FLOAT array of size %d", (int)res->size);
+			fprintf(f, "FLOAT array of size %d at %p", (int)res->size, res->fptr);
+			break;
+
+		case JBAS_RESOURCE_INT_PTR:
+			fprintf(f, "INT pointer to %p", res->iptr);
+			break;
+
+		case JBAS_RESOURCE_FLOAT_PTR:
+			fprintf(f, "FLOAT pointer to %p", res->fptr);
 			break;
 
 		case JBAS_RESOURCE_CFUN:
@@ -149,4 +159,15 @@ void jbas_debug_dump_symbol_table(FILE *f, jbas_env *env)
 			fprintf(f, "\n");
 		}
 	fprintf(f, JBAS_COLOR_MAGENTA "== SYMBOL TABLE DUMP END\n" JBAS_COLOR_RESET);
+}
+
+void jbas_debug_dump_resource_manager(FILE *f, jbas_resource_manager *rm)
+{
+	fprintf(f, "RM has %d resources:\n", rm->ref_count);
+	for (int i = 0; i < rm->ref_count; i++)
+	{
+		fprintf(f, "\t%d, %d - %d references to ", i, rm->refs[i]->rm_index, rm->refs[i]->ref_count);
+		jbas_debug_dump_resource(f, rm->refs[i]);
+		fprintf(f, "\n");
+	}
 }

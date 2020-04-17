@@ -13,24 +13,24 @@ static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jb
 	// Pointers
 	if (a->type == JBAS_TOKEN_RESOURCE)
 	{
-		jbas_resource *res = a->resource_token.res;
+		jbas_resource *ares = a->resource_token.res;
 		jbas_error err;
 
-		if (res->type == JBAS_RESOURCE_INT_PTR)
+		if (ares->type == JBAS_RESOURCE_INT_PTR)
 		{
 			err = jbas_token_to_number_type(env, b, JBAS_NUM_INT);
 			if (err) return err;
 
-			*res->iptr = b->number_token.i;
+			*ares->iptr = b->number_token.i;
 			return JBAS_OK;
 		}
 
-		if (res->type == JBAS_RESOURCE_FLOAT_PTR)
+		if (ares->type == JBAS_RESOURCE_FLOAT_PTR)
 		{
 			err = jbas_token_to_number_type(env, b, JBAS_NUM_FLOAT);
 			if (err) return err;
 
-			*res->fptr = b->number_token.f;
+			*ares->fptr = b->number_token.f;
 			return JBAS_OK;
 		}
 	}
@@ -59,7 +59,15 @@ static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jb
 	jbas_resource *dest;
 
 	// Decrement reference count on the resource currently kept in the dest. variable
-	if (asym->res) jbas_resource_remove_ref(asym->res);
+	if (asym->res)
+	{
+		// oh god that's literally so bad for performance
+		// but it's almost 4am and I just want to get some 
+		// sleep an be able to tell everybody that I got
+		// this basic compiler to work....
+		jbas_resource_remove_ref(asym->res);
+		asym->res = NULL;
+	}
 
 	// If there's no destination resource, create it
 	if (!asym->res) jbas_resource_create(&env->resource_manager, &asym->res);

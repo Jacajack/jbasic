@@ -6,7 +6,7 @@ CLIBFLAGS = -Iinclude -Wall -lm -fPIC -shared -DJBAS_ERROR_REASONS
 CC = clang
 
 ifneq ($(DEBUG),)
-CFLAGS += -O0 -DJBAS_DEBUG -fno-omit-frame-pointer -fsanitize=address -fsanitize=undefined -g -ferror-limit=2
+CFLAGS += -O0 -DJBAS_DEBUG -DnoJBAS_RESOURCE_DEBUG -fno-omit-frame-pointer -fsanitize=address -fsanitize=undefined -g -ferror-limit=2
 else
 CFLAGS += -O3 -flto -ffast-math -march=native -ftree-vectorize
 endif

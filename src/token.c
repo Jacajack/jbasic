@@ -53,24 +53,30 @@ jbas_error jbas_token_copy(jbas_token *dest, jbas_token *src, jbas_token_pool *p
 
 	tmp = *src;
 
-	// Copy source tuple
+	// Copy source tuple - recursively
 	if (src->type == JBAS_TOKEN_TUPLE)
 	{
 		tmp.tuple_token.tokens = NULL;
 		for (jbas_token *t = jbas_token_list_begin(src->tuple_token.tokens); t; t = t->r)
 		{
-			err = jbas_token_list_push_back_from_pool(tmp.tuple_token.tokens, pool, t, &tmp.tuple_token.tokens);
+			jbas_token u = {.type = JBAS_TOKEN_DELIMITER};
+			err = jbas_token_copy(&u, t, pool);
+			if (err) return err;
+			err = jbas_token_list_push_back_from_pool(tmp.tuple_token.tokens, pool, &u, &tmp.tuple_token.tokens);
 			if (err) return err;
 		}
 	}
 
-	// Copy source parentheses contents
+	// Copy source parentheses contents - recursively
 	if (src->type == JBAS_TOKEN_PAREN)
 	{
 		tmp.paren_token.tokens = NULL;
 		for (jbas_token *t = jbas_token_list_begin(src->paren_token.tokens); t; t = t->r)
 		{
-			err = jbas_token_list_push_back_from_pool(tmp.paren_token.tokens, pool, t, &tmp.paren_token.tokens);
+			jbas_token u = {.type = JBAS_TOKEN_DELIMITER};
+			err = jbas_token_copy(&u, t, pool);
+			if (err) return err;
+			err = jbas_token_list_push_back_from_pool(tmp.paren_token.tokens, pool, &u, &tmp.paren_token.tokens);
 			if (err) return err;
 		}
 	}

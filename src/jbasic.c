@@ -195,6 +195,24 @@ jbas_error jbas_eval_instruction(jbas_env *env, jbas_token *begin, jbas_token **
 	else
 		jbas_token_list_destroy(expr, &env->token_pool);
 
+	// DEBUG
+	#ifdef JBAS_RESOURCE_DEBUG
+	fprintf(stderr, "\n\n\n");
+	jbas_debug_dump_resource_manager(stderr, &env->resource_manager);
+	fprintf(stderr, "\n\n\n");
+	#endif
+
+	// Run garbage collection
+	jbas_error err = jbas_resource_manager_garbage_collect(&env->resource_manager, NULL);
+	if (err) return err;
+
+	// DEBUG
+	#ifdef JBAS_RESOURCE_DEBUG
+	fprintf(stderr, "\n\n\n");
+	jbas_debug_dump_resource_manager(stderr, &env->resource_manager);
+	fprintf(stderr, "\n\n\n");
+	#endif
+
 	return JBAS_OK;
 }
 

@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 	}
 
 	jbas_env env;
-	jbas_env_init(&env, 10000, 10000, 10000, 10000);
+	jbas_env_init(&env, 100000, 10000, 10000, 10000);
 
 	// Import C resources
 	void *handle = dl_load(&env, debug);
@@ -135,6 +135,11 @@ int main(int argc, char *argv[])
 	{
 		printf("\n\n\n");
 		jbas_debug_dump_symbol_table(stderr, &env);
+		// printf("\n\n\n");
+		// jbas_debug_dump_resource_manager(stderr, &env.resource_manager);
+		// jbas_resource_manager_garbage_collect(&env.resource_manager, NULL);
+		// printf("\n\n\n");
+		// jbas_debug_dump_resource_manager(stderr, &env.resource_manager);
 	}
 
 	// Run error?

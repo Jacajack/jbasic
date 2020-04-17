@@ -29,7 +29,7 @@ void jbas_resource_manager_destroy(jbas_resource_manager *rm)
 jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm, int *collected)
 {
 	int n = 0;
-	for (int i = 0; i < rm->ref_count; i++)
+	for (int i = rm->ref_count - 1; i >= 0; i--)
 	{
 		if (rm->refs[i] && rm->refs[i]->ref_count == 0)
 		{
