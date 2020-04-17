@@ -79,6 +79,26 @@ static jbas_error jbas_op_assign(jbas_env *env, jbas_token *a, jbas_token *b, jb
 			dest->number = b->number_token;
 			break;
 
+		// A resource is assigned
+		case JBAS_TOKEN_RESOURCE:
+			{
+				jbas_resource *bres = b->resource_token.res;
+				if (bres->type == JBAS_RESOURCE_INT_PTR)
+				{
+					dest->type = JBAS_RESOURCE_NUMBER;
+					dest->number.type = JBAS_NUM_INT;
+					dest->number.i = *bres->iptr;
+				}
+				else if (bres->type == JBAS_RESOURCE_FLOAT_PTR)
+				{
+					dest->type = JBAS_RESOURCE_NUMBER;
+					dest->number.type = JBAS_NUM_FLOAT;
+					dest->number.f = *bres->fptr;
+				}
+			}
+			break;
+
+		
 		default:
 			return JBAS_BAD_ASSIGN;
 			break;
@@ -229,6 +249,13 @@ static jbas_error jbas_op_or(jbas_env *env, jbas_token *a, jbas_token *b, jbas_t
 
 static jbas_error jbas_op_eq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	// Eval args
+	jbas_error err;
+	err = jbas_to_value(env, a);
+	if (err) return err;
+	err = jbas_to_value(env, b);
+	if (err) return err;
+
 	// For numbers
 	if (jbas_can_cast_to_number(a) && jbas_can_cast_to_number(b))
 	{
@@ -257,6 +284,13 @@ static jbas_error jbas_op_eq(jbas_env *env, jbas_token *a, jbas_token *b, jbas_t
 
 static jbas_error jbas_op_less(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
+	// Eval args
+	jbas_error err;
+	err = jbas_to_value(env, a);
+	if (err) return err;
+	err = jbas_to_value(env, b);
+	if (err) return err;
+
 	// For numbers
 	if (jbas_can_cast_to_number(a) && jbas_can_cast_to_number(b))
 	{
