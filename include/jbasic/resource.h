@@ -53,7 +53,7 @@ typedef struct jbas_resource_manager
 
 
 jbas_error jbas_resource_manager_init(jbas_resource_manager *rm, int max_count);
-jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm);
+jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm, int *collected);
 void jbas_resource_delete(jbas_resource_manager *rm, jbas_resource *res);
 jbas_error jbas_resource_remove_ref(jbas_resource *res);
 jbas_error jbas_resource_add_ref(jbas_resource *res);

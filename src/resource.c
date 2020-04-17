@@ -26,13 +26,19 @@ void jbas_resource_manager_destroy(jbas_resource_manager *rm)
 /**
 	Deletes resources that have no references
 */
-jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm)
+jbas_error jbas_resource_manager_garbage_collect(jbas_resource_manager *rm, int *collected)
 {
+	int n = 0;
 	for (int i = 0; i < rm->ref_count; i++)
 	{
-		if (rm->refs[i]->ref_count == 0)
+		if (rm->refs[i] && rm->refs[i]->ref_count == 0)
+		{
 			jbas_resource_delete(rm, rm->refs[i]);
+			n++;
+		}
 	}
+
+	if (collected) *collected = n;
 
 	return JBAS_OK;
 }
@@ -66,11 +72,19 @@ jbas_error jbas_resource_create(jbas_resource_manager *rm, jbas_resource **res)
 	r->ref_count = 1;
 
 	// Register in the resource manager
-	int index = rm->ref_count++;
-	if (index >= rm->max_count) return JBAS_RESOURCE_MANAGER_OVERFLOW; // TODO try gc!
+	int index = rm->ref_count;
+	if (index >= rm->max_count)
+	{
+		// Try GC
+		int collected;
+		jbas_resource_manager_garbage_collect(rm, &collected);
+		if (!collected) return JBAS_RESOURCE_MANAGER_OVERFLOW;
+
+		index = rm->ref_count;
+	}
 	r->rm_index = index;
 	rm->refs[index] = r;
-
+	rm->ref_count++;
 
 	*res = r;
 	return JBAS_OK;
@@ -101,6 +115,7 @@ void jbas_resource_delete(jbas_resource_manager *rm, jbas_resource *res)
 	jbas_resource *m = rm->refs[index];
 	rm->refs[res->rm_index] = m;
 	m->rm_index = res->rm_index;
+	res->rm_index = -1;
 
 	free(res);
 }
