@@ -53,7 +53,7 @@ jbas_error jbas_env_init(jbas_env *env, int token_count, int text_count, int sym
 void jbas_env_destroy(jbas_env *env);
 
 #define JBAS_MAX_EVAL_OPERATORS 64
-#define JBAS_TOKENIZE_PAREN_LEVELS 64
+#define JBAS_TOKENIZE_PAREN_LEVELS 256
 
 #ifdef __cplusplus
 }

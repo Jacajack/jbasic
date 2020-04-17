@@ -439,7 +439,7 @@ static jbas_error jbas_op_div(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 	return JBAS_OK;
 }
 
-static jbas_error jbas_op_mod(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+static jbas_error jbas_op_rem(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
 {
 	jbas_error err = jbas_binary_math_op(env, a, b, res);
 	if (err) return err;
@@ -448,6 +448,26 @@ static jbas_error jbas_op_mod(jbas_env *env, jbas_token *a, jbas_token *b, jbas_
 		res->number_token.f = fmodf(a->number_token.f, b->number_token.f);
 	else
 		res->number_token.i = a->number_token.i % b->number_token.i;
+
+	return JBAS_OK;
+}
+
+static int real_mod(int a, int b)
+{
+    return (a % b + b) % b;
+}
+
+static jbas_error jbas_op_mod(jbas_env *env, jbas_token *a, jbas_token *b, jbas_token *res)
+{
+	jbas_error err = jbas_binary_math_op(env, a, b, res);
+	if (err) return err;
+
+	if (res->number_token.type == JBAS_NUM_FLOAT)
+		res->number_token.f = fmodf(a->number_token.f, b->number_token.f);
+	else
+	{
+		res->number_token.i = real_mod(a->number_token.i, b->number_token.i);
+	}
 
 	return JBAS_OK;
 }
@@ -569,11 +589,12 @@ const jbas_operator jbas_operators[JBAS_OPERATOR_COUNT] =
 	{.str = ">=",  .level = 3, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_geq},
 
 	// Mathematical operators
-	{.str = "+",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_add},
-	{.str = "-",   .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = &jbas_op_neg_def, .eval_args = 1, .handler = jbas_op_sub},
-	{.str = "*",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_mul},
-	{.str = "/",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_div},
-	{.str = "%",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_mod},
+	{.str = "+",     .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_add},
+	{.str = "-",     .level = 4, .type = JBAS_OP_BINARY_LR, .fallback = &jbas_op_neg_def, .eval_args = 1, .handler = jbas_op_sub},
+	{.str = "*",     .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_mul},
+	{.str = "/",     .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_div},
+	{.str = "%",     .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_rem},
+	{.str = "mod",   .level = 5, .type = JBAS_OP_BINARY_LR, .fallback = 0, .eval_args = 1, .handler = jbas_op_mod},
 
 	// Unary prefix operators
 	{.str = "!",       .level = 6, .type = JBAS_OP_UNARY_PREFIX, .fallback = 0, .eval_args = 1, .handler = jbas_op_not},
